@@ -1,0 +1,7 @@
+results (v28) SectorSize:(34359738368), SectorNumber:(1)
+seal: addPiece: 3m49.635398626s (142.7 MiB/s)
+seal: preCommit phase 1: 2h54m46.335148167s (3.125 MiB/s)
+seal: preCommit phase 2: 5m4.347653251s (107.7 MiB/s)
+seal: commit phase 1: 249.745659ms (128.1 GiB/s)
+seal: commit phase 2: 532.516µs (58.68 TiB/s)
+seal: verify: 872ns

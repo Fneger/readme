@@ -1,0 +1,26 @@
+一笔交易从发起到完成的整个过程，所需要的时间比较久，并且会经历多个不同的状态转换，主要的状态包括如下所示的 5 个：
+
+StorageDealClientFunding
+StorageDealCheckForAcceptance
+StorageDealAwaitingPreCommit
+StorageDealSealing
+StorageDealActive
+可通过命令 ~/git2/lotus/lotus client list-deals 查看交易的状态信息，当交易达到最后一个 StorageDealActive 状态的时候，表明这笔交易已经完成。在整个交易的过程中，最耗时的是从 StorageDealAwaitingPreCommit 状态到 StorageDealSealing 状态，一般需要等待 5 个小时以上，其它状态耗时相对比较短
+
+WaitSeed 表示该扇区正在等待链上的消息，准备让扇区的数据上链（PreCommitSector 的信息），如下图所示：
+
+等待消息上链
+
+PreCommitSector 消息上链之后，miner 会继续做 C1 和 C2，做完之后，还需要有另一条消息上链：ProveCommitSector，这两条消息都上链之后（这两条消息都是需要收钱的，包括燃烧掉的 gas 费用和质押费用， 其中， gas 费用永久消耗，质押费用等扇区生命周期结束之后会退回），就可以看到该扇区的状态变成 Proving 了，如下所示：
+
+消息上链成功
+
+使用命令 ~/git2/lotus/lotus-miner sectors list 可以查看到该扇区的 OnChain 选项已经是 YES 了，但是它的 Active 选项依然还是 NO，需要等一个固定的时间之后， miner 做完一次 WindowsPoST 之后（需要向链上发送一条 SubmitWindowedPoSt 消息，目前该消息已经基本不收费了），这个 Active 选项才会变成 YES。
+
+等了一段时间之后，所有消息都成功上链，就可以看到这个 Active 状态变成 Yes 了，如下图所示：
+
+提交 SubmitWindowedPoSt 消息之后的状态
+
+Active 状态变成 Yes 之后，你就开始拥有算力了（示例是中 2KiB 大小的算力，当前占全网总算力约 13%），而本地 2KiB 测试网没有最低出块要求（主网 32GiB 扇区的最低出块要求是 10TB 算力，64GiB 扇区的最低出块要求是 20TB 算力），有算力就可以出块了（旷工做完第一个 WindowPoST 之后再过 1 个小时才开始出块）。因此，有算力之后，后面就是激动人心的开始出块过程了（算力越大，出块越多）
+
+

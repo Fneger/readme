@@ -1,0 +1,99 @@
+##################************更改配置后需要重启miner*************
+# Default config:
+[API]
+  #矿工API绑定地址，lotus-miner和lotus-work交互使用
+  ListenAddress = "/ip4/192.168.51.10/tcp/2345/http"
+  #当lotus存在多个miner时使用
+  RemoteListenAddress = "192.168.51.10:2345"
+  Timeout = "30s"
+#
+[Backup]
+#  DisableMetadataLog = false
+#
+#用于矿工节点交互配置
+[Libp2p]
+  #ListenAddresses为公网IP地址，端口0表示任意端口，也可指定固定端口
+  ListenAddresses = ["/ip4/192.168.51.10/tcp/0", "/ip6/::/tcp/0"]
+  #将此矿工节点发布到其他节点
+#  AnnounceAddresses = []
+#  避免发布到该指定矿工地址
+#  NoAnnounceAddresses = []
+#  如果已建立连接数超过设定值，则连接管理器将开始修建现有连接，ConnMgrHigh直到达到的设置值ConnMgrLow。ConnMgrGrace保持比年轻的连接
+#  ConnMgrLow = 150
+#  ConnMgrHigh = 180
+#  ConnMgrGrace = "20s"
+#
+#用于在网络中发布消息
+[Pubsub]
+#  通常不需要运行pubsub引导节点，因此设置为false
+#  Bootstrapper = false
+#  路由跟踪
+#  RemoteTracer = "/dns4/pubsub-tracer.filecoin.io/tcp/4001/p2p/QmTd6UvR47vUidRNZ1ZKXHrAFhqTJAD27rKL9XYghEKgKX"
+#
+[Dealmaking]
+# 当使能，miner可以接受线上交易
+  ConsiderOnlineStorageDeals = true
+# 当使能，miner可以接受离线交易
+  ConsiderOfflineStorageDeals = true
+# 当使能，miner可以接受线上检索交易
+  ConsiderOnlineRetrievalDeals = true
+# 当使能，miner可以接受离线检索交易
+  ConsiderOfflineRetrievalDeals = true
+#当使能，miner可以接受已验证的存储交易
+  ConsiderVerifiedStorageDeals = true
+#当使能，miner可以接受未验证的存储交易
+  ConsiderUnverifiedStorageDeals = true
+#可通过CID组成的列表，可在交易时拒绝，也就是拒绝指定CID交易
+  PieceCidBlocklist = []
+#从交易到开始密封所需的最大预期时间，包括交易传输时间和发布时间，直到将数据分配给扇区之前
+  ExpectedSealDuration = "24h0m0s"
+# 当交易准备发布时，周期等待时间，交易准备好后批量发布,一旦准备发布消息数大于MaxDealsPerPublishMsg，交易消息将立即发布，如果PublishStorageDeals中的任何交易在执行时都无法通过验证，即：启动时期已过，则所有交易都将无法发布
+  PublishMsgPeriod = "1h0m0s"
+#周期发布交易，所能包含的最大交易数量
+  MaxDealsPerPublishMsg = 8
+#  MaxProviderCollateralMultiplier = 2
+#  Filter = ""
+#  RetrievalFilter = ""
+#
+[Sealing]
+# 最大可以等待多少用于交易的封装扇区数量
+  MaxWaitDealsSectors = 2
+#创建CC扇区时可以同时密封多少个扇区上线，0表示无限制
+  MaxSealingSectors = 10
+# 创建有交易的新扇区时，可以同事密封的扇区上线，0表示不限制
+  MaxSealingSectorsForDeals = 10
+# 新创建的扇区在开始密封之前，等待更多交易的时长，为统一扇区接收到更多交易再密封，提高封装效率，一旦扇区填充完毕将立即开始密封
+  WaitDealsDelay = "6h0m0s"
+# 是否保留交易数据未密封副本，避免以后解封数据付出更为高昂的代价，以消耗存储空间以减小数据解封所付出的高昂代价
+  AlwaysKeepUnsealedCopy = true
+#
+[Storage]
+# 并行获取多少扇区的上限
+  ParallelFetchLimit = 10
+  AllowAddPiece = false
+  AllowPreCommit1 = false
+  AllowPreCommit2 = false
+  AllowCommit = false
+  AllowUnseal = false
+#
+[Fees]
+# 最大支付的gas Fee
+  MaxPreCommitGasFee = "0.025 FIL"
+  MaxCommitGasFee = "0.05 FIL"
+  MaxTerminateGasFee = "0.5 FIL"
+# 提交时空证明所需支付的最大gas Fee
+  MaxWindowPoStGasFee = "2 FIL"
+# 发布交易所需支付的最大 gas Fee
+  MaxPublishDealsFee = "0.05 FIL"
+  MaxMarketBalanceAddFee = "0.007 FIL"
+#
+[Addresses]
+# 发送PreCommit（上链）消息支付费用的钱包地址
+  PreCommitControl = ["t3vmkklalbvdg2patere7m3s6rzubp6sa5sjym42lutd2cxm54iobe2i6nnmyjvxrtmapy4ri2ac3n3oox7zbq"]
+# 发送Commit（提交复制证明）消息支付费用的钱包地址
+  CommitControl = ["t3xf3dpqaixxg26pexrd775gcbpmwpnulsu7uu4r5rcse3zunz3t7yfeevkeko3etyk52gud2bp7i3zyzxvfkq"]
+# 禁止对自动发送的邮件使用owner地址，当所有者地址是脱机/硬件密钥时，此功能很有用
+  DisableOwnerFallback = false
+#禁止对可能使用其他控制地址的消息使用辅助地址
+  DisableWorkerFallback = false
+#
