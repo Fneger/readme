@@ -1,0 +1,34 @@
+Reduced data availability: 1 pg inactive
+调整min_size=1可以解决IO夯住问题 
+获取pool min_size 信息
+ceph osd pool get test_pool min_size
+设置pool min_size 信息
+ceph osd pool set test_pool min_size 1
+
+full_ratio导致小于backfillfull_ratio
+full ratio(s) out of order
+full_ratio (0.85) < backfillfull_ratio (0.9), increased
+ceph osd set-full-ratio 0.95
+ceph osd set-nearfull-ratio 0.9
+
+mon node0 is low on available space（/var/lib/ceph/mon/目录所剩空间所占比例，超过报警阀值）
+查看当期mon_data_avail_warn值
+ceph config get mon mon_data_avail_warn
+设置mon_data_avail_warn值
+ceph config set mon mon_data_avail_warn 10
+
+!!!!!!!!!!一个磁盘只能对应一个OSD节点
+Undersized PG当前Acting Set小于储存池副本数
+Degraded 被降级
+
+
+启动osd
+systemctl start ceph-osd@1
+停止osd
+systemctl stop ceph-osd@1
+查看osd进程状态
+systemctl status ceph-osd@0.service
+
+
+
+
