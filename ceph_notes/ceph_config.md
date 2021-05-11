@@ -183,14 +183,33 @@ crushtool -d mycrushmap -o mycrushmap.txt
 
 ### 3.编辑CRUSH map
 
+```
+rule replicated_rule {
+        id 0
+        type replicated
+        min_size 1
+        max_size 10
+        step take default
+        step chooseleaf firstn 0 type host
+        step emit
+}
+```
+
 可编辑CRUSH map文件中ruleset相关选项及其具体含义如下所示：
 
-| 选项名称 |      |                           含义                            |
-| :------: | ---- | :-------------------------------------------------------: |
-| ruleset  |      | 对应规则（集）的唯一编号。不同的pool可以使用不同的ruleset |
-|   type   |      |        副本策略，包含如下选项：replicated,erasure         |
-| min_size |      |              用于对选择副本数的范围进行约束               |
-| max_size |      |              用于对选择副本数的范围进行约束               |
+```
+rule <rulename> {
+id <id > [整数，规则id]
+type [replicated|erasure] [规则类型，用于复制池还是纠删码池]
+min_size <min-size> [如果池的最小副本数小于该值，则不会为当前池应用这条规则]
+max_size <max-size>[如果创建的池的最大副本大于该值，则不会为当前池应用这条规则]
+step take <bucket type> [这条规则作用的bucket，默认为default]
+step [chooseleaf|choose] [firstn] <num> type <bucket-type> 
+# num == 0 选择N（池的副本数）个bucket
+# num > 0且num < N 选择num个bucket
+# num < 0 选择N-num(绝对值)个bucket
+step emit
+```
 
 #### step:take,chooseleaf,emit
 
@@ -255,3 +274,105 @@ rule replicated_rule {
 }
 
 另外需要注意的是，在CRUSH map中，除了OSD（叶子节点）之外，其他层级关系都是虚拟的（不管其有无实际物理实体对应），这位灵活定制CRUSH提供了更大的遍历
+
+#### 从命令行更新CRUSH map的 层次结构
+
+创建bucket
+
+```
+ceph osd crush add-bucket DC1 datacenter
+```
+
+#### 规划新的bucket
+
+定义新的rack
+
+```
+ceph osd crush add-bucket  rack1 rack
+```
+
+将rack加入dc1
+
+```
+ceph osd crush  move rack1 root=dc1
+```
+
+把主机移动到相应rack中
+
+```
+ceph osd crush link ceph2 rack=rack1
+```
+
+## 数据重平衡
+
+通过手动调整每个OSDreweight可以触发PG在OSD之间进行迁移，以恢复数据平衡。上述数据重平衡操作可逐个OSD或者批量进行
+
+### 逐个调整
+
+首先查看整个整个集群的空间利用率统计
+
+ceph osd df tree
+
+找到空间利用率较高的OSD，然后逐个执行
+
+ceph osd reweight {osd_numeric_id} {reweight}
+
+osd_numeric_id:必选，整型，OSD对应的数字ID
+
+reweight:必选，浮点类型，[0, 1]，带设置的OSD 的reweight。reweight取值越小，将使更多的数据从对应的OSD迁出
+
+### 批量调整
+
+目前有两种模式：一种按照OSD当前空间利用率（reweight-by-utilization）；另一种按照PG在OSD之间的分布（reweight-by-pg）。为了防止影响前端业务，可以先测试执行上述命令后，将会触发PG迁移数量的相关统计（以下都以reweight-by-utilization相关命令为例进行说明），以方便规划进行调整的时机：
+
+#### 测试执行
+
+ceph osd test-reweight-by-utilization {overload} {max_change} {max_osds} {--no-increasing}
+
+overload:可选，整型，≥ 100；默认值120，当且仅当某个OSD的空间利用率大于等于集群平均空间利用率的overload/100时，调整其reweight
+
+max_change:可选，浮点类型，[0, 1]；默认值受mon_reweight_max_change控制，目前为0.05.每次调整reweight的最大幅度，即调整上限。实际每个OSD调整幅度取决于自身空间利用率与集群平均空间利用率的偏离程度，偏离越多，则调整幅度越大，反之则调整幅度越小
+
+max_osds：可选，整型；默认值受mon_reweight_max_osds控制，目前4.每次至多调整的OSD数目
+
+--no-increasing：可选字符类型。如果携带，则从不将reweight进行上调（上调指将当前underload的OSD权重调大，让其分担更多PG）；如果不携带，至多将OSD的reweight调整至1.0
+
+#### 确认调整
+
+ceph osd reweight-by-utilization 105 .2 4 --no-increasing
+
+
+
+## 部署BlueStore
+
+判断给定的OSD是FileStore还是BlueStore
+
+ceph osd metadata $ID | grep osd_objectstore
+
+获取文件存储与bluestore的当前计数
+
+ceph osd count-metadata osd_objectstore
+
+将FileStore替换为BlueStore参考
+
+[部署和操作BlueStore](https://durantthorvalds.top/2020/12/27/%E4%B8%8B%E4%B8%80%E4%BB%A3%E5%AF%B9%E8%B1%A1%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8EBlueStore/)
+
+
+
+## 纠删码配置
+
+创建一个纠删码模板
+
+ceph osd erasure-code-profile set my-ec-profile plugin=jerasure k=4 m=2 technique=liber8tion ruleset-failure-domain=host
+
+上述命令创建了一个liber8tion算法（注意：此时m必须为2）、容灾域为主机级别（注意：因为k + m = 6，此时必须有6台主机才能使得容灾域配置正常生效）的纠删码模板，可以使用如下命令查看和确认：
+
+ceph osd erasure-code-profile get my-ec-profile
+
+最后，可以基于上述纠删码模板创建一个纠删码类型的储存池
+
+ceph osd pool create my-ec-pool 128 erasure my-ec-profill
+
+其中，命令中的128为关联储存池中的PG数目
+
+纠删码储存池创建完成后，上层应用（例如RBD）可以通过librados接口正常读写池中的对象
