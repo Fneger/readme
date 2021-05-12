@@ -346,6 +346,21 @@ ceph config set global osd_pool_default_pg_autoscale_mode on
 
 ceph osd pool autoscale-status
 
+## 删除OSD
+
+```bash
+# 1. down 掉 OSD
+ceph osd down osd.0
+# 2. 踢出集群
+ceph osd out osd.0
+# 3. 移除 OSD 
+ceph osd rm osd.0
+# 4. 删除授权
+ceph auth rm osd.0
+# 5. 删除 crush map 
+ceph osd crush rm osd.0
+```
+
 ## 删除 OSD 节点
 
 参考先删后增节点时如何减少数据迁移：https://www.cnblogs.com/schangech/p/8036191.html
@@ -449,13 +464,6 @@ bluestore_cache_size_hdd = 12884901888
 
 bluestore_cache_size_ssd = 12884901888
 
-## osd (near) full 的解决方法
-
-根本解决之道是添加 osd，临时解决方法是删除无用数据，osd full 时所有的读写操作都无法进行，可通过两种方法恢复读写后再执行删除数据的命令：
-• 一是调整 full osd 的权重：ceph osd crush reweight osd.33 0.7 或者 ceph osd reweight-by-utilization
-
-• 二是调高 full 的上限：ceph osd set-full-ratio 0.98，参见：no-free-drive-space
-
 ## ceph dashboard 303 状态码
 
 需要代理网关的后端服务设置为处于 active 状态的 mgr 节点，参考：https://docs.ceph.com/docs/master/mgr/dashboard/#proxy-configuration
@@ -484,15 +492,3 @@ debug_journal = 20
 导出 Cephfs 为 NFS
 
 参考：https://documentation.suse.com/ses/6/html/ses-all/cha-ceph-nfsganesha.html
-----------------------------------------------------------------------------------------------------------------------
-
-## osd Crash解決辦法
-
-新的崩溃可以通过以下方式列出
-ceph crash ls-new
-有关特定崩溃的信息，可以使用以下方法检查
-ceph crash info <crash-id>
-通过“存档”崩溃（可能是在管理员检查之后）来消除此警告，从而不会生成此警告
-ceph crash archive <crash-id>
-新的崩溃都可以通过以下方式存档
-ceph crash archive-all

@@ -1,5 +1,9 @@
 # Ceph相关配置
 
+## 官网命令参考
+
+[Command Reference](https://www.bookstack.cn/read/ceph-en/78cb7aec7d1a820d.md)
+
 ## CLI命令用于配置集群
 
 将转储群集的整个配置数据库
@@ -152,6 +156,12 @@ mon_host通过部署工具自动配置
 
 
 ## CRUSH Map配置
+
+### 官方参考
+
+[CRUSH Maps](https://www.bookstack.cn/read/ceph-en/18e903f31a47a50b.md)
+
+[Manually editing a CRUSH Map](https://www.bookstack.cn/read/ceph-en/0730a7216541bcdd.md)
 
 通过CLI命令可在线修改CRUSH Map各项配置，也可以通过直接编辑CRUSH map实现
 
@@ -345,6 +355,10 @@ ceph osd reweight-by-utilization 105 .2 4 --no-increasing
 
 ## 部署BlueStore
 
+### 官方参考
+
+[BlueStore Migration](https://www.bookstack.cn/read/ceph-en/20131086c577af9e.md)
+
 判断给定的OSD是FileStore还是BlueStore
 
 ceph osd metadata $ID | grep osd_objectstore
@@ -361,9 +375,59 @@ ceph osd count-metadata osd_objectstore
 
 ## 纠删码配置
 
+### 官网参考
+
+[Erasure code](https://www.bookstack.cn/read/ceph-en/e84aa3dad45ac7b4.md)
+
+纠删码池功能性能暂未达到商用水平
+
+### 纠删码模板
+
+查看纠删码默认配置文件
+
+$ ceph osd erasure-code-profile getdefault
+
+k=2
+
+m=2
+
+plugin=jerasure
+
+crush-failure-domain=host
+
+technique=reed_sol_van
+
+
+
 创建一个纠删码模板
 
-ceph osd erasure-code-profile set my-ec-profile plugin=jerasure k=4 m=2 technique=liber8tion ruleset-failure-domain=host
+ceph osd erasure-code-profile set my-ec-profile plugin=jerasure k=3 m=2 technique=liber8tion ruleset-failure-domain=rack
+
+k：数据盘个数
+
+m：校验盘个数
+
+technique：编码方式，默认为reed_sol_van；编码方式支持以下几种：
+
+​	reed_sol_van：基于范德蒙德矩阵的RS-RAID
+
+​	reed_sol_r6_op：基于范德蒙德矩阵的RAID6（优化）
+
+​	cauchy_orig：基于原生柯西矩阵的RS-RAID
+
+​	cauchy_good：基于最佳柯西矩阵的RS-RAID
+
+​	liberation,blaum_roth,liber8tion：最小密度RAID6
+
+packetsize：包大小，默认2048
+
+plugin：字符类型，用于指定所采用的纠删码插件，jerasure（默认）,lrc,shec,isa
+
+key=value：键值对，用于指定每种类型纠删码的具体配置参数，典型如数据盘和校验盘个数、选用的编码技术等。不同类型的纠删码可以有不同类型的键值对
+
+uleset-failure-domain：字符类型，对应CRUSH模板的容灾域，例如为“host”，则要求纠删码的数据盘和校验盘分别位于不同主机之下
+
+--force：字符类型，如果携带，覆盖任何已经存在的同名模板
 
 上述命令创建了一个liber8tion算法（注意：此时m必须为2）、容灾域为主机级别（注意：因为k + m = 6，此时必须有6台主机才能使得容灾域配置正常生效）的纠删码模板，可以使用如下命令查看和确认：
 
@@ -376,3 +440,238 @@ ceph osd pool create my-ec-pool 128 erasure my-ec-profill
 其中，命令中的128为关联储存池中的PG数目
 
 纠删码储存池创建完成后，上层应用（例如RBD）可以通过librados接口正常读写池中的对象
+
+
+
+## Ceph集群定时scrub
+
+​	Ceph集群会定期进行Scrub操作，Scrub操作会对数据进行加锁，后端此时访问该数据会出现卡顿现象
+
+​	Scrub是Ceph集群副本进行数据扫描的操作，用以检测副本间数据的一致性，包括Scrub和Deep-Scrub，其中Scrub只对元数据信息进行扫描，相对比较快，而Deep-Scrub不仅对元数据进行扫描，还会对数据进行扫描，相对比较慢。
+
+​	OSD的Scrub的默认策略是每天到每周（如果集群负荷大周期就是一周，如果集群负荷小周期就是一天）进行一次，时间区域默认为全天（0时 - 24时），Deep-Scrub默认策略是每周一次。
+
+
+
+基于业务运行时间进行调整
+
+场景：晚22点到第二天7点进行Scrub
+
+先通过tell方式，让Scrub时间区间配置立即生效，具体操作如下：
+
+配置Scrub起始时间为22点整：
+
+ceph tell osd.* injectargs "--osd-scrub-begin-hour 22"
+
+配置Scrub结束时间为第二天早上7点整：
+
+ceph tell osd.* injectargs "--osd-scrub-end-hour 7"
+
+这样之后，可以使配置立即生效，即使集群服务重启或者节点重启，配置也会从配置文件中加载，永久生效。
+
+
+
+## Ceph数据重建配置策略
+
+​		在Ceph对接OpenStack的场景中，如果Ceph集群出现OSD的out或者in（增加、删除、上线、下线OSD等情况），最终会导致Ceph集群中的数据迁移及数据重建，数据迁移及重建会占用一部分网络带宽及磁盘带宽，此时可能导致OpenStack中使用Ceph作为后端储存的虚拟机出现卡顿现象。
+
+### 场景一：优先保证Recovery带宽
+
+​		在对数据安全性要求比较高的场景下，为了保证数据副本的完整性以及快速回复储存集群的健康，会优先保证数据恢复带宽，此时需要提升Recovery的I/O优先级，降低Client的I/O优先级，具体操作如下（在Ceph任意节点或客户端运行即可）：
+
+提升Recovery的I/O优先级(12.0.0版本默认Recovery的I/O优先级为3)：
+
+ceph tell osd.* injectargs "--osd-recovery-op-priority 63"
+
+降低Client的I/O优先级（12.0.0版本默认Recovery的I/O优先级为63）：
+
+ceph tell osd.* injectargs "--osd-client-op-priority 3"
+
+待Recovery完成，需要还原配置
+
+ceph tell osd.* injectargs "--osd-recovery-op-priority 3"
+
+ceph tell osd.* injectargs "--osd-client-op-priority 63"
+
+### 场景二：优先保证Client带宽
+
+​		在对数据安全性要求不是很高的场景下，为了降低对用户体验的影响，会优先对Client的 I/O优先级及带宽进行保证，此时需要降低Recovery的I/O的优先级及带宽，具体操作如下（在Ceph任意节点或客户端运行即可）：
+
+降低Recovery的I/O优先级(12.0.0版本默认Recovery的I/O优先级为3)：
+
+ceph tell osd.* injectargs "--osd-recovery-op-priority 1"
+
+降低Recovery的I/O带宽及Backfill带宽（12.0.0版本默认osd-recovery-max-active为3，osd-recovery-sleep为0）：
+
+ceph tell osd.* injectargs "--osd-recovery-max-active 1"
+
+ceph tell osd.* injectargs "--osd-recovery-sleep 0.4"
+
+待Recovery完成，需要还原配置
+
+ceph tell osd.* injectargs "--osd-recovery-op-priority 3"
+
+ceph tell osd.* injectargs "--osd-recovery-max-active 3"
+
+ceph tell osd.* injectargs "--osd-recovery-sleep 0"
+
+### 场景三：完全保证Client带宽
+
+​		在极端情况下，如果网络带宽及磁盘性能都有限，这个时候为了不影响用户体验，不得不在业务繁重时段关闭数据重建及迁移的I/O，来完全保证Client的带宽，在业务空闲时段再打开数据重建及迁移，具体操作如下：
+
+在业务繁忙时，完全关闭数据重建及迁移：
+
+ceph osd set norebalance
+
+ceph osd set norecover
+
+ceph osd set nobackfill
+
+在业务繁忙时，完全关闭数据重建及迁移：
+
+ceph osd unset norebalance
+
+ceph osd unset norecover
+
+ceph osd unset nobackfill
+
+提示：如果在关闭数据重建及迁移期间，数据的其他副本损坏，则会导致副本数据无法完整找回的风险
+
+### 备注
+
+以上三种方案操作配置均为立即生效，且重启服务或者重启节点后失效，如果想长期生效，可以在进行以上操作配置立即生效后，修改所有ceph集群节点的配置文件。
+
+
+
+## Ceph集群Full紧急处理
+
+### 处理方法
+
+​		当Ceph集群空间使用率大于等于near_full告警水位时，会触发集群进行告警，提示管理员此时集群空间使用率已经到达告警水位，如果管理员没有及时进行扩容或者相应的处理，随着数据 的增多，当集群空间使用率大于等于告警水位时，集群将停止接收来自客户端的写入请求（包括数据的删除操作）。
+
+在MON节点查询MON配置：
+
+ceph --admin-daemon /run/ceph/ceph-mon.{your-mon-ip}.asok config show | grep full_ratio
+
+遇到near_full的告警该怎么办？
+
+​		如果集群已经有near_full的告警了，而且也有扩容的设备，那么就可以考虑进行集群的扩容，，包括增加磁盘或者增加储存节点。
+
+遇到full告警怎么办？
+
+​		如果集群已经是full的告警了，此时业务已经无法向集群继续写入数据，而此时如果暂时无磁盘或储存节点可供扩容，应该先通知业务及时做好数据保存工作，并对集群进行紧急配置删除一些无用的数据，恢复集群正产工作状态，待扩容设备到了再进行扩容操作。
+
+### 案例实战
+
+#### 紧急配置步骤
+
+设置OSD禁止读写
+
+ceph osd pause
+
+备注：该操作会禁止接收一切读写请求
+
+通知MON和OSD修改full阀值
+
+ceph tell mon.* injectargs "--mon-osd-full-ratio 0.96"
+
+ceph tell osd.* injectargs "--mon-osd-full-ratio 0.96"
+
+通知PG修改full阀值
+
+ceph pg set_full_ratio 0.96
+
+解除OSD禁止读写
+
+ceph osd unpause
+
+删除相关数据
+
+将配置还原
+
+ceph tell mon.* injectargs "--mon-osd-full-ratio 0.95"
+
+ceph tell osd.* injectargs "--mon-osd-full-ratio 0.95"
+
+ceph pg set_full_ratio 0.95
+
+经过以上步骤，就可以紧急将无用数据删除，让集群恢复正常水位，并给扩容预留了时间
+
+
+
+## Ceph快照在增量备份的应用
+
+首先，我们创建一个image
+
+rbd create rbd/test_image --size 5000 --image-format 2
+
+然后，我们写入一部分数据到test_img这个image中（假设这部分数据为Time1_Data）:
+
+为了能写入数据到image，我们先map该image到本地设备
+
+rbd map test_image 
+
+格式化该映射的本地设备
+
+mkfs.ext4 /dev/rbd0
+
+挂在该设备到本地目录
+
+mount /dev/rbd0 /mnt/rbd_test/
+写入相关内容
+
+echo "Time1_Data" > /mnt/rbd_test/Time1_Data
+
+umount该设备将写入内容刷新到image
+
+umount /mnt/rbd_test/
+
+之后对test_image创建一个快照：
+
+rbd snap create rbd/test_image@snap1
+
+然后在对test_image写入一部分数据（假设这部分数据为Time2_Data）:
+
+mount /dev/rbd0 /mnt/rbd_test/
+
+echo "Time2_Data" > /mnt/rbd_test/Time2_Data
+
+umount /mnt/rbd_test/
+
+接着在对test_image创建一个快照：
+
+rbd snap create rbd/test_image@snap2
+
+然后以同样的方法对tets_image写入Time3_Data内容然后创建快照test_image@snap3
+
+### 全量备份
+
+使用rbd export命令导出test_image进行全量备份：
+
+rbd export rbd/test_image Time1_Data_img
+
+### 增量备份
+
+#### 备份
+
+新创建test_image时，可以导出一个test_img_backup并备份
+
+rbd export rbd/test_image test_img_backup
+
+写入Time1_Data后，我们基于之前创建的快照test_image@snap1
+
+导出从创建到写入Time1_Data之间的增量数据
+
+rbd export-diff rbd/test_image@snap1 test_img_to_snap1
+
+写入Time2_Data和Time3_Data按同样操作导出相应的增量数据
+
+#### 恢复
+
+首先导入test_img_backup:
+
+rbd import test_img_backup rbd/test_img_recover
+
+然后导入所有增量文件
+
+rbd import_diff test_img_to_snap1 rbd/test_img_recover
