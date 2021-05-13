@@ -4,6 +4,8 @@
 
 [Command Reference](https://www.bookstack.cn/read/ceph-en/78cb7aec7d1a820d.md)
 
+[参考博文](https://durantthorvalds.top/2020/12/15/Ceph%20%E9%85%8D%E7%BD%AE%E5%8F%82%E6%95%B0/)
+
 ## CLI命令用于配置集群
 
 将转储群集的整个配置数据库
@@ -155,6 +157,14 @@ mon_host通过部署工具自动配置
 
 
 
+## OSD配置
+
+
+
+## PG配置
+
+
+
 ## CRUSH Map配置
 
 ### 官方参考
@@ -162,6 +172,8 @@ mon_host通过部署工具自动配置
 [CRUSH Maps](https://www.bookstack.cn/read/ceph-en/18e903f31a47a50b.md)
 
 [Manually editing a CRUSH Map](https://www.bookstack.cn/read/ceph-en/0730a7216541bcdd.md)
+
+[参考博文](https://www.cnblogs.com/zyxnhr/p/10610295.html)
 
 通过CLI命令可在线修改CRUSH Map各项配置，也可以通过直接编辑CRUSH map实现
 
@@ -378,6 +390,8 @@ ceph osd count-metadata osd_objectstore
 ### 官网参考
 
 [Erasure code](https://www.bookstack.cn/read/ceph-en/e84aa3dad45ac7b4.md)
+
+[参考博文](https://durantthorvalds.top/2020/11/26/ceph%E7%BA%A0%E5%88%A0%E7%A0%81%E9%83%A8%E7%BD%B2/)
 
 纠删码池功能性能暂未达到商用水平
 
@@ -674,4 +688,4 @@ rbd import test_img_backup rbd/test_img_recover
 
 然后导入所有增量文件
 
-rbd import_diff test_img_to_snap1 rbd/test_img_recover
+rbd import-diff test_img_to_snap1 rbd/test_img_recover

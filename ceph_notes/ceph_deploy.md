@@ -1,5 +1,7 @@
 # ceph 分布式存储服务器部署
 
+[参考博文](https://durantthorvalds.top/2020/11/19/Ceph-deploy%E6%B5%81%E7%A8%8B/)
+
 ## 磁盘相关操作命令
 
 查看是否4K对齐
@@ -11,6 +13,8 @@ sudo hdparm -I /dev/sda | grep -i speed
 查看SATA接口支持的连接速度
 
 dmesg | grep -i sata | grep 'link up'
+
+
 
 ## 硬件要求
 
@@ -48,7 +52,7 @@ kernel.pid_max = 4194303
 
 ## 各个节点环境准备
 
-### 各個節點时间同步
+### 各个节点时间同步
 
 apt-get install ntp -y
 ntpdate ntp2.aliyun.com
@@ -67,7 +71,7 @@ hostnamectl set-hostname node1
 apt-get install -y openssh-server
 安装ceph相关包
 apt-get install -y ceph ceph-osd ceph-mds ceph-mon radosgw
-查看集羣詳細健康狀態
+查看集群健康状态
 ceph health detail
 查看PG状态
 
@@ -112,7 +116,8 @@ vi /etc/hosts
 192.168.1.117 host-192-168-1-117
 192.168.1.119 host-192-168-1-119
 
-部署集羣（admin節點）
+#### 部署集群（admin节点）
+
 首先创建文件夹，以后生成的配置文件默认保存在此
 mkdir /etc/ceph 
 cd /etc/ceph
@@ -134,10 +139,6 @@ apt-get install ceph-mgr
 ceph-deploy mgr create ceph1
 
 service ceph-mgr@ceph1 start
-
-LVM分区锁定解决办法
-lvscan
-lvremove
 
 创建osd节点前格式化磁盘
 格式化osd节点对应磁盘设备
@@ -163,45 +164,6 @@ systemctl start ceph-osd@x
 停止某個osd
 
 systemctl stop ceph-osd@x
-
-## PG 操作
-
-查看PG状态
-
-ceph pg stat
-
-查看pg组的映射信息
-
-ceph pg dump
-
-查看pg中stuck的状态 
-
-ceph pg dump_stuck unclean
-ceph pg dump_stuck inactive
-ceph pg dump_stuck stale
-
-获取 pg_num / pgp_num
-
-ceph osd pool get mytestpool pg_num
-ceph osd pool get mytestpool pgp_num
-
-设置 pg_num
-
-ceph osd pool set mytestpool pg_num 512
-ceph osd pool set mytestpool pgp_num 512
-
-恢复一个丢失的pg
-
-ceph pg {pg-id} mark_unfound_lost revert
-
-修复 pg 数据 
-
-ceph pg crush repair {pg_id}
-ceph pg repair {pg_id}
-
-显示非正常状态的pg 
-
-ceph pg dump_stuck inactive|unclean|stale
 
 ## 配置緩存池
 
@@ -345,73 +307,6 @@ ceph config set global osd_pool_default_pg_autoscale_mode on
 // 查看自动增加的 pg 数量
 
 ceph osd pool autoscale-status
-
-## 删除OSD
-
-```bash
-# 1. down 掉 OSD
-ceph osd down osd.0
-# 2. 踢出集群
-ceph osd out osd.0
-# 3. 移除 OSD 
-ceph osd rm osd.0
-# 4. 删除授权
-ceph auth rm osd.0
-# 5. 删除 crush map 
-ceph osd crush rm osd.0
-```
-
-## 删除 OSD 节点
-
-参考先删后增节点时如何减少数据迁移：https://www.cnblogs.com/schangech/p/8036191.html
-// 停止指定 OSD 进程
-systemctl stop ceph-osd@15
-// out 指定 OSD
-ceph osd out 15
-// crush remove 指定 OSD
-ceph osd crush remove osd.15
-// 删除 osd 对应的 auth
-ceph auth del osd.15
-// 删除 osd
-ceph osd rm 15
-// 按照上述步骤删除节点上所有 osd 后，crush remove 指定节点
-
-ceph osd crush rm osd-host
-
-## rbd image 使用
-
-// 创建大小为 1G 的 image
-rbd create rbd/myimage --size 1024
-rbd map rbd/myimage
-mkfs.xfs /dev/rbd0
-mkdir /data
-mount /dev/rbd0 /data
-// 扩容
-rbd resize --image=rbd/myimage --size 10G
-xfs_growfs /data
-// 卸载
-umount /data
-// 检查占用设备的进程
-fuser -m -v /dev/rbd0
-rbd unmap /dev/rbd0
-rbd rm rbd/myimage
-// rbd image 转换 format，也可用于 image 复制
-rbd export rbd/myrbd - | rbd import --image-format 2 - rbd/myrbd_v2
-// rbd bench
-rados bench -p rbd 20 -b 4K write -t 1 --no-cleanup
-rbd create --size 4G test
-
-rbd bench-write test
-
-## 删除存储池
-
-$ ceph tell mon.\* injectargs '--mon-allow-pool-delete=true'
-
-The following will delete the pool
-
-$ ceph osd pool delete <pool-name> <pool-name> --yes-i-really-really-mean-it
-
-$ ceph tell mon.\* injectargs '--mon-allow-pool-delete=false'
 
 ## 挂载 cephfs 到本地
 
