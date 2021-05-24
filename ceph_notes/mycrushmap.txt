@@ -13,6 +13,7 @@ device 0 osd.0 class ssd
 device 1 osd.1 class ssd
 device 2 osd.2 class ssd
 device 3 osd.3 class hdd
+device 4 osd.4 class hdd
 
 # types
 type 0 osd
@@ -44,15 +45,26 @@ host node1 {
 	id -7		# do not change unnecessarily
 	id -8 class ssd		# do not change unnecessarily
 	id -9 class hdd		# do not change unnecessarily
-	# weight 0.029
+	# weight 0.143
 	alg straw2
 	hash 0	# rjenkins1
 	item osd.3 weight 0.029
+	item osd.4 weight 0.114
+}
+root default {
+	id -1		# do not change unnecessarily
+	id -2 class ssd		# do not change unnecessarily
+	id -18 class hdd		# do not change unnecessarily
+	# weight 0.579
+	alg straw2
+	hash 0	# rjenkins1
+	item node0 weight 0.436
+	item node1 weight 0.143
 }
 rack rack1 {
 	id -11		# do not change unnecessarily
 	id -15 class ssd		# do not change unnecessarily
-	id -17 class hdd		# do not change unnecessarily
+	id -6 class hdd		# do not change unnecessarily
 	# weight 0.436
 	alg straw2
 	hash 0	# rjenkins1
@@ -62,30 +74,20 @@ rack rack2 {
 	id -12		# do not change unnecessarily
 	id -13 class ssd		# do not change unnecessarily
 	id -14 class hdd		# do not change unnecessarily
-	# weight 0.029
+	# weight 0.143
 	alg straw2
 	hash 0	# rjenkins1
-	item node1 weight 0.029
+	item node1 weight 0.143
 }
 datacenter dc1 {
 	id -10		# do not change unnecessarily
 	id -16 class ssd		# do not change unnecessarily
-	id -18 class hdd		# do not change unnecessarily
-	# weight 0.465
+	id -17 class hdd		# do not change unnecessarily
+	# weight 0.579
 	alg straw2
 	hash 0	# rjenkins1
 	item rack1 weight 0.436
-	item rack2 weight 0.029
-}
-root default {
-	id -1		# do not change unnecessarily
-	id -2 class ssd		# do not change unnecessarily
-	id -6 class hdd		# do not change unnecessarily
-	# weight 0.931
-	alg straw2
-	hash 0	# rjenkins1
-	item node0 weight 0.436
-	item node1 weight 0.029
+	item rack2 weight 0.143
 }
 
 # rules

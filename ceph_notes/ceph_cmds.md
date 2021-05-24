@@ -1,5 +1,27 @@
 # Ceph常用命令
 
+## ceph的pg,osd和pool之间的关系查找
+
+使用ceph时，经常碰到某个pg有问题，但是这个pg属于哪个存储池呢，到处翻命令，在此记录下常用的几个命令，用于查找pg os和pool之间的映射关系。
+
+1. 通过pg查找所属的pool
+
+ceph pg dump |grep "^{poolid}\."  #poolid通过ceph osd pool ls detail 可查看到
+2. 通过pg查找pg
+
+ceph pg ls-by-pool {poolname} 
+或者
+ceph pg ls {poolid}
+3. 通过pg查看其所在的osd
+
+ceph pg map {pgid}
+
+[root@node1 ~]# ceph pg map 1.0
+osdmap e61 pg 1.0 (1.0) -> up [8,0] acting [8,0]
+4. 通过osd查看pg
+
+ceph pg ls-by-osd {osd.id}    #osd.id可以通过ceph osd tree查看
+
 ## 集群操作
 
 ### 启动集群
@@ -316,6 +338,522 @@ ceph osd pool create testpool 128 128 # 128 指 PG 数量
 ceph osd pool set-quota testpool max_objects 10000
 ```
 
+### 关连池到应用程序
+
+```
+ceph osd pool application enable {pool-name} {application-name}
+```
+
+注意：
+
+CephFS使用应用程序名称`cephfs`，RBD使用应用程序名称`rbd`，而RGW使用应用程序名称`rgw`
+
+### 设置储存池配额
+
+您可以将池配额设置为每个池的最大字节数和/或最大对象数。
+
+```
+ceph osd pool set-quota {pool-name} [max_objects {obj-count}] [max_bytes {bytes}]
+```
+
+例如:
+
+```
+ceph osd pool set-quota data max_objects 10000
+```
+
+要删除配额，请将其值设置为`0`。
+
+### 重命名池
+
+要重命名池，请执行：
+
+```
+ceph osd pool rename {current-pool-name} {new-pool-name}
+```
+
+如果您重命名池，并且您具有针对经过身份验证的用户的每个池功能，则必须使用新的池名称来更新用户的功能（即上限）。
+
+## 显示池统计信息
+
+要显示池的利用率统计信息，请执行：
+
+```
+rados df
+```
+
+此外，要获取特定池或全部池的I / O信息，请执行以下操作：
+
+```
+ceph osd pool stats [{pool-name}]
+```
+
+### 制作池快照
+
+要制作池的快照，请执行：
+
+```
+ceph osd pool mksnap {pool-name} {snap-name}
+```
+
+### 删除池的快照
+
+要删除池的快照，请执行：
+
+```
+ceph osd pool rmsnap {pool-name} {snap-name}
+```
+
+### 设置池的值
+
+要将值设置为池，请执行以下操作：
+
+```
+ceph osd pool set {pool-name} {key} {value}
+```
+
+您可以为以下键设置值：
+
+```
+compression_algorithm
+```
+
+- 描述
+- 设置用于基础BlueStore的内联压缩算法。此设置将覆盖[全局设置](http://docs.ceph.com/docs/master/rados/configuration/bluestore-config-ref/#inline-compression)的`bluestore compression algorithm`。
+- 类型
+- 细绳
+- 有效设定
+- `lz4`, `snappy`, `zlib`, `zstd`
+
+```
+compression_mode
+```
+
+- 描述
+- 设置基础BlueStore的内联压缩算法的策略。此设置将覆盖[全局设置](http://docs.ceph.com/docs/master/rados/configuration/bluestore-config-ref/#inline-compression)的`bluestore compression mode`。
+- 类型
+- 细绳
+- 有效设定
+- `none`, `passive`, `aggressive`, `force`
+
+```
+compression_min_blob_size
+```
+
+- 描述
+- 小于此的块永远不会被压缩。此设置将覆盖[全局设置](http://docs.ceph.com/docs/master/rados/configuration/bluestore-config-ref/#inline-compression)的`bluestore compression min blob *`。
+- 类型
+- 无符号整数
+
+```
+compression_max_blob_size
+```
+
+- 描述
+- 大于此的块`compression_max_blob_size`在压缩之前会分解为较小的斑点大小。
+- 类型
+- 无符号整数
+
+```
+size
+```
+
+- 描述
+- 设置池中[对象的副本数。](https://www.bookstack.cn/read/ceph-en/1d9994450843e4a5.md#set-the-number-of-object-replicas)有关更多详细信息，请参见[设置对象副本数。](https://www.bookstack.cn/read/ceph-en/1d9994450843e4a5.md#set-the-number-of-object-replicas)仅[复制](https://www.bookstack.cn/read/ceph-en/1d9994450843e4a5.md#set-the-number-of-object-replicas)池。
+- 类型
+- 整数
+
+```
+min_size
+```
+
+- 描述
+- 设置I / O所需的最小副本[数。](https://www.bookstack.cn/read/ceph-en/1d9994450843e4a5.md#set-the-number-of-object-replicas)有关更多详细信息，请参见[设置对象副本数。](https://www.bookstack.cn/read/ceph-en/1d9994450843e4a5.md#set-the-number-of-object-replicas)仅[复制](https://www.bookstack.cn/read/ceph-en/1d9994450843e4a5.md#set-the-number-of-object-replicas)池。
+- 类型
+- 整数
+- 版本
+- `0.54` 以上
+
+```
+pg_num
+```
+
+- 描述
+- 计算数据放置时要使用的放置组的有效数量。
+- 类型
+- 整数
+- 有效范围
+- 优于`pg_num`当前值。
+
+```
+pgp_num
+```
+
+- 描述
+- 计算数据放置时要使用的放置组的有效放置数量。
+- 类型
+- 整数
+- 有效范围
+- 等于或小于`pg_num`。
+
+```
+crush_rule
+```
+
+- 描述
+- 用于在集群中映射对象放置的规则。
+- 类型
+- 细绳
+
+```
+allow_ec_overwrites
+```
+
+- 描述
+- 是否写入擦除代码池可以更新对象的一部分，因此cephfs和rbd可以使用它。有关更多详细信息，请参见[带覆盖的擦除编码](https://www.bookstack.cn/read/ceph-en/e84aa3dad45ac7b4.md#erasure-coding-with-overwrites)。
+- 类型
+- 布尔型
+- 版本
+- `12.2.0` 以上
+
+```
+hashpspool
+```
+
+- 描述
+- 在给定的池上设置/取消设置HASHPSPOOL标志。
+- 类型
+- 整数
+- 有效范围
+- 1个设置标志，0个未设置标志
+
+```
+nodelete
+```
+
+- 描述
+- 在给定的池上设置/取消设置NODELETE标志。
+- 类型
+- 整数
+- 有效范围
+- 1个设置标志，0个未设置标志
+- 版本
+- 版本 `FIXME`
+
+```
+nopgchange
+```
+
+- 描述
+- 在给定的池上设置/取消设置NOPGCHANGE标志。
+- 类型
+- 整数
+- 有效范围
+- 1个设置标志，0个未设置标志
+- 版本
+- 版本 `FIXME`
+
+```
+nosizechange
+```
+
+- 描述
+- 在给定的池上设置/取消设置NOSIZECHANGE标志。
+- 类型
+- 整数
+- 有效范围
+- 1个设置标志，0个未设置标志
+- 版本
+- 版本 `FIXME`
+
+```
+write_fadvise_dontneed
+```
+
+- 描述
+- 在给定的池上设置/取消设置WRITE_FADVISE_DONTNEED标志。
+- 类型
+- 整数
+- 有效范围
+- 1个设置标志，0个未设置标志
+
+```
+noscrub
+```
+
+- 描述
+- 在给定的池上设置/取消设置NOSCRUB标志。
+- 类型
+- 整数
+- 有效范围
+- 1个设置标志，0个未设置标志
+
+```
+nodeep-scrub
+```
+
+- 描述
+- 在给定的池上设置/取消设置NODEEP_SCRUB标志。
+- 类型
+- 整数
+- 有效范围
+- 1个设置标志，0个未设置标志
+
+```
+hit_set_type
+```
+
+- 描述
+- 启用缓存池的命中集跟踪。有关其他信息，请参阅[Bloom Filter](https://en.wikipedia.org/wiki/Bloom_filter)。
+- 类型
+- 细绳
+- 有效设定
+- `bloom`, `explicit_hash`, `explicit_object`
+- 默认
+- `bloom`。其他值用于测试。
+
+```
+hit_set_count
+```
+
+- 描述
+- 要为高速缓存池存储的命中集的数量。数字越大，`ceph-osd`守护程序消耗的RAM越多。
+- 类型
+- 整数
+- 有效范围
+- `1`。代理尚未处理> 1。
+
+```
+hit_set_period
+```
+
+- 描述
+- 高速缓存池的命中设置周期的持续时间（以秒为单位）。数字越大，`ceph-osd`守护程序消耗的RAM越多。
+- 类型
+- 整数
+- 例子
+- `3600` 1小时
+
+```
+hit_set_fpp
+```
+
+- 描述
+- `bloom`匹配集类型的误报概率。有关其他信息，请参见[Bloom Filter](https://en.wikipedia.org/wiki/Bloom_filter)。
+- 类型
+- 双倍的
+- 有效范围
+- 0.0 - 1.0
+- 默认
+- `0.05`
+
+```
+cache_target_dirty_ratio
+```
+
+- 描述
+- 在缓存分层代理将其刷新到后备存储池之前，包含修改后的（脏）对象的缓存池的百分比。
+- 类型
+- 双倍的
+- 默认
+- `.4`
+
+```
+cache_target_dirty_high_ratio
+```
+
+- 描述
+- 缓存分层代理将以更快的速度将它们包含到后备存储池之前，包含修改后的（脏）对象的缓存池所占的百分比。
+- 类型
+- 双倍的
+- 默认
+- `.6`
+
+```
+cache_target_full_ratio
+```
+
+- 描述
+- 在高速缓存分层代理将其从高速缓存池中逐出之前，包含未修改（干净）对象的高速缓存池的百分比。
+- 类型
+- 双倍的
+- 默认
+- `.8`
+
+```
+target_max_bytes
+```
+
+- 描述
+- 当`max_bytes`触发阈值时，Ceph将开始刷新或逐出对象。
+- 类型
+- 整数
+- 例子
+- `1000000000000` ＃1 TB
+
+```
+target_max_objects
+```
+
+- 描述
+- 当`max_objects`触发阈值时，Ceph将开始刷新或逐出对象。
+- 类型
+- 整数
+- 例子
+- `1000000` ＃1M个对象
+
+```
+hit_set_grade_decay_rate
+```
+
+- 描述
+- 两个连续命中点之间的温度衰减率
+- 类型
+- 整数
+- 有效范围
+- 0 - 100
+- 默认
+- `20`
+
+```
+hit_set_search_last_n
+```
+
+- 描述
+- 计算hit_sets中最多N个出现以进行温度计算
+- 类型
+- 整数
+- 有效范围
+- 0-hit_set_count
+- 默认
+- `1`
+
+```
+cache_min_flush_age
+```
+
+- 描述
+- 缓存分层代理将对象从缓存池刷新到存储池之前的时间（以秒为单位）。
+- 类型
+- 整数
+- 例子
+- `600` 10分钟
+
+```
+cache_min_evict_age
+```
+
+- 描述
+- 缓存分层代理从缓存池中退出对象之前的时间（以秒为单位）。
+- 类型
+- 整数
+- 例子
+- `1800` 30分钟
+
+```
+fast_read
+```
+
+- 描述
+- 在擦除编码池上，如果打开此标志，则读取请求将使issue子读取所有分片，并等待直到接收到足够的分片来解码以服务于客户端。对于jerasure和isaerasure插件，一旦返回前K个答复，就会使用从这些答复中解码的数据立即满足客户的请求。这有助于权衡一些资源以获得更好的性能。当前，仅擦除编码池支持此标志。
+- 类型
+- 布尔型
+- 默认值
+- `0`
+
+```
+scrub_min_interval
+```
+
+- 描述
+- 负载低时清理池的最小时间间隔（以秒为单位）。如果为0，则使用config中的值osd_scrub_min_interval。
+- 类型
+- 双倍的
+- 默认
+- `0`
+
+```
+scrub_max_interval
+```
+
+- 描述
+- 池清理的最大时间间隔（以秒为单位），与群集负载无关。如果为0，则使用config中的值osd_scrub_max_interval。
+- 类型
+- 双倍的
+- 默认
+- `0`
+
+```
+deep_scrub_interval
+```
+
+- 描述
+- 池“深度”清理的时间间隔（以秒为单位）。如果为0，则使用config中的osd_deep_scrub_interval值。
+- 类型
+- 双倍的
+- 默认
+- `0`
+
+```
+recovery_priority
+```
+
+- 描述
+- 设置值后，它将增加或减少计算的保留优先级。此值必须在-10到10的范围内。对不太重要的池使用负优先级，因此它们的优先级低于任何新池。
+- 类型
+- 整数
+- 默认
+- `0`
+
+```
+recovery_op_priority
+```
+
+- 描述
+- 指定该池的恢复操作优先级，而不是`osd_recovery_op_priority`。
+- 类型
+- 整数
+- 默认
+- `0`
+
+
+
+### 设置对象副本数
+
+要设置复制池上对象副本的数量，请执行以下操作：
+
+```
+ceph osd pool set {poolname} size {num-replicas}
+```
+
+重要的
+
+在`{num-replicas}`包括itself.如果你想要的对象和对象的总ofthree实例对象的两个副本，指定对象`3`。
+
+例如：
+
+```
+ceph osd pool set data size 3
+```
+
+您可以为每个池执行此命令。**注意：**一个对象可能在降级模式下接受的I / O数少于`pool size`副本数。要为I / O设置最小数量的必需副本，应使用该设置，`min_size`例如：
+
+```
+ceph osd池设置数据min_size 2
+```
+
+这样可以确保数据池中的任何对象都不会收到少于`min_size`副本的I / O。
+
+### 获取对象副本数
+
+要获取对象副本的数量，请执行以下操作：
+
+```
+ceph osd pool set data min_size 2
+```
+
+Ceph将列出池，并`replicated size`突出显示该属性。默认情况下，ceph创建一个对象的两个副本（总共三个副本，或大小为3）。
+
 ### 删除存储池1
 
 首先要在 `ceph.conf` 文件中配置允许删除集群:
@@ -376,7 +914,242 @@ ceph pg repair {pg_id}
 ceph pg dump_stuck inactive|unclean|stale
 ```
 
+## SSD缓存池
 
+### 1.配置 crush class
+
+如果你已经做好 OSD 磁盘分组了，请跳过这一步。
+
+如果没有，那么接下来你可能会问，缓存池是创建在 SSD 磁盘上的，那我如何在指定的 OSD(ssd 磁盘)上去创建存储池呢？
+
+这个问题问得好，首先我们得给磁盘，也就是 OSD 分组。
+
+ceph 从 LUMINOUS 版本开始新增了个功能叫 `crush class`，又被称之为磁盘智能分组。因为这个功能就是根据磁盘类型自动进行属性关联，然后进行分类减少了很多的人为操作。 在这个功能之前，如果我们需要对 ssd 和 hdd 进行分组的时候，需要大量的修改 crushmap，然后绑定不同的存储池到不同的crush树上面，而这个功能让我们简化了这种逻辑。
+
+ceph中的每个设备都可以选择一个class类型与之关联，通常有三种class类型：
+
+- hdd
+- ssd
+- nvme
+
+#### 1.1 启用 ssd class
+
+默认情况下，我们所有的 `osd crush class` 类型都是 hdd。
+
+你也可以使用下面的命令来列出当前集群中所有启用的 osd crush class
+
+```
+root@ceph1:~# ceph osd crush class ls
+[
+    "hdd"
+]
+```
+
+现在我们的需求是：把一些 OSD（如 osd.1,osd.2） 移动到 ssd class 中去，很简单，分两步操作就好了。
+
+(1). 将所有的 ssd 的 osd 从 hdd class 中删除
+
+```
+for i in 1 2; 
+do 
+	ceph osd crush rm-device-class osd.$i;
+done
+```
+
+这个时候，如果我们再次使用 `ceph osd tree` 查看 osd 布局，会看到被我们指定的 osd 前面不再有 hdd 标识，事实上啥也没有了。
+
+(2). 将刚刚删除的 osd 添加到 ssd class:
+
+```
+for i in 1 2; 
+do 
+	ceph osd crush set-device-class ssd osd.$i;
+done 
+```
+
+此时，我们会发现 osd.1 osd.2 已经加入到 ssd class 了
+
+然后我们再次查看 crush class，也多出了一个名为 ssd 的 class：
+
+```
+ceph osd crush class ls
+[
+    "hdd",
+    "ssd"
+]
+```
+
+#### 1.2 创建基于 ssd 的 class rule
+
+创建一个 class rule，取名为 ssd_rule，使用 ssd 的 osd：
+
+```bash
+ceph osd crush rule create-replicated ssd_rule default host ssd
+```
+
+查看集群rule：
+
+```bash
+ceph osd crush rule list
+replicated_rule
+ssd_rule
+```
+
+### 2.配置缓存池
+
+我们先创建一个常规存储池 `data`
+
+```bash
+ceph osd pool create data 64 64
+```
+
+#### 2.1 创建一个缓存池
+
+我们在步骤 4 中已经创建了一个基于 ssd 的 crush_rule，我们创建一个存储池，使用该crush rule即可。
+
+```bash
+ceph osd pool create cache 64 64 ssd_rule
+```
+
+你也可以选择把一个已经创建好的存储池迁移到 ssd osd 上：
+
+```bash
+ceph osd pool get cache crush_rule
+```
+
+验证迁移是否成功：
+
+```bash
+root@ceph1:~# ceph osd pool get cache crush_rule
+crush_rule: ssd_rule
+```
+
+#### 2.2 设置缓存层
+
+WRITEBACK 缓存池配置：
+
+```bash
+# 将 cache pool 放置到 data pool 前端
+ceph osd tier add data cache
+
+# 设置缓存模式为 writeback
+ceph osd tier cache-mode cache writeback
+
+# 将所有客户端请求从标准池引导至缓存池
+ceph osd tier set-overlay data cache
+```
+
+READ-ONLY 缓存池配置
+
+```bash
+# 将 cache pool 放置到 data pool 前端
+ceph osd tier add data cache
+# 设置缓存模式为 readonly
+ceph osd tier cache-mode cache readonly
+```
+
+通过下面的命令可以查到 data pool 和 cache pool 的详细信息
+
+```bash
+root@ceph1:~# ceph osd dump |egrep 'data|cache'
+pool 1 'data' replicated size 2 min_size 2 crush_rule 0 object_hash rjenkins pg_num 64 pgp_num 64 last_change 40 lfor 39/39 flags hashpspool tiers 2 read_tier 2 write_tier 2 stripe_width 0
+pool 2 'cache' replicated size 2 min_size 2 crush_rule 1 object_hash rjenkins pg_num 64 pgp_num 64 last_change 42 lfor 39/39 flags hashpspool,incomplete_clones tier_of 1 cache_mode writeback stripe_width 0
+```
+
+对缓存池做一些基本的配置：
+
+```bash
+ceph osd pool set cache hit_set_type bloom
+ceph osd pool set cache hit_set_count 1
+ceph osd pool set cache hit_set_period 3600   # 1 hour
+ceph osd pool set cache target_max_bytes 1000000000000  # 1 TB
+ceph osd pool set cache target_max_objects 10000000
+ceph osd pool set cache min_read_recency_for_promote 1
+ceph osd pool set cache min_write_recency_for_promote 1
+```
+
+#### 2.3 删除writeback缓存池：
+
+由于回写缓存可能具有修改的数据，所以必须采取措施以确保在禁用和删除缓存前，不丢失缓存中对象的最近的任何更改。
+
+(1). 将缓存模式更改为转发，以便新的和修改的对象刷新至后端存储池：
+
+```bash
+ceph osd tier cache-mode cache forward --yes-i-really-mean-it
+```
+
+(2). 查看缓存池以确保所有的对象都被刷新（这可能需要点时间）：
+
+```bash
+rados -p cache ls 
+```
+
+(3). 如果缓存池中仍然有对象，也可以手动刷新：
+
+```bash
+rados -p cache cache-flush-evict-all
+```
+
+(4). 删除覆盖层，以使客户端不再将流量引导至缓存：
+
+```bash
+ceph osd tier remove-overlay data
+```
+
+(5). 解除存储池与缓存池的绑定：
+
+```bash
+ceph osd tier remove data cache
+```
+
+#### 2.4 缓存池的相关参数配置
+
+(1). 命中集合过滤器，默认为 Bloom 过滤器，这种一种非常高效的过滤器（看官方文档的意思，好像目前只支持这一种filter）：
+
+```bash
+ceph osd pool set cache hit_set_type bloom
+ceph osd pool set cache hit_set_count 1
+# 设置 Bloom 过滤器的误报率
+ceph osd pool set cache hit_set_fpp 0.15
+# 设置缓存有效期,单位：秒
+ceph osd pool set cache hit_set_period 3600   # 1 hour
+```
+
+(2). 设置当缓存池中的数据达到多少个字节或者多少个对象时，缓存分层代理就开始从缓存池刷新对象至后端存储池并驱逐：
+
+```bash
+# 当缓存池中的数据量达到1TB时开始刷盘并驱逐
+ceph osd pool set cache target_max_bytes 1099511627776
+
+# 当缓存池中的对象个数达到100万时开始刷盘并驱逐
+ceph osd pool set cache target_max_objects 10000000
+```
+
+(3). 定义缓存层将对象刷至存储层或者驱逐的时间：
+
+```bash
+ceph osd pool set cache cache_min_flush_age 600
+ceph osd pool set cache cache_min_evict_age 600 
+```
+
+(4). 定义当缓存池中的脏对象（被修改过的对象）占比达到多少(百分比)时，缓存分层代理开始将object从缓存层刷至存储层：
+
+```bash
+ceph osd pool set cache cache_target_dirty_ratio 0.4
+```
+
+(5). 当缓存池的饱和度达到指定的值，缓存分层代理将驱逐对象以维护可用容量，此时会将未修改的（干净的）对象刷盘：
+
+```bash
+ceph osd pool set cache cache_target_full_ratio 0.8
+```
+
+(6). 设置在处理读写操作时候，检查多少个 HitSet，检查结果将用于决定是否异步地提升对象（即把对象从冷数据升级为热数据，放入快取池）。它的取值应该在 0 和 hit_set_count 之间， 如果设置为 0 ，则所有的对象在读取或者写入后，将会立即提升对象；如果设置为 1 ，就只检查当前 HitSet ，如果此对象在当前 HitSet 里就提升它，否则就不提升。 设置为其它值时，就要挨个检查此数量的历史 HitSet ，如果此对象出现在 `min_read_recency_for_promote` 个 HitSet 里的任意一个，那就提升它。
+
+```bash
+ceph osd pool set cache min_read_recency_for_promote 1
+ceph osd pool set cache min_write_recency_for_promote 1
+```
 
 ## RBD块设备
 
@@ -449,13 +1222,13 @@ rbd create --size {megabytes} {pool-name}/{image-name}
 例如，要创建一个名为1GB的映像`bar`，该映像将信息存储在名为的apool中`swimmingpool`，请执行以下操作：
 
 ```
-rbd create --size 1024 swimmingpool/bar
+rbd create --size 1024 swimmingpool/bar --image-feature layering
 ```
 
 如果在创建映像时未指定池，则它将存储在默认池中`rbd`。例如，要创建一个`foo`存储在默认池中的名为1GB的映像`rbd`，请执行以下操作：
 
 ```
-rbd create --size 1024 foo
+rbd create --size 1024 foo --image-feature layering
 ```
 
 注意：
@@ -533,6 +1306,8 @@ rbd info swimmingpool/bar
 ```
 rbd resize --size 2048 foo (to increase)
 rbd resize --size 2048 foo --allow-shrink (to decrease)
+
+xfs_growfs /mnt/rbd_test/
 ```
 
 ### 删除块设备映像
@@ -623,6 +1398,32 @@ rbd trash restore swimmingpool/2bf4474b0dc51
 ```
 rbd trash restore swimmingpool/2bf4474b0dc51 --image new-name
 ```
+
+### 开机自动挂载
+
+首先我们需要在部署节点上把客户端验证的 key 推送到客户端。
+
+```
+ceph-deploy admin ceph-client
+# 如果部署节点没有 ceph-client 的验证信息，可以直接用 scp 拷贝
+scp /etc/ceph/ceph.client.admin.keyring root@{client.ip}:/etc/ceph/
+```
+
+然后我们编辑客户端的 rbdmap 文件 `vim /etc/ceph/rbdmap`，添加一行自动 map 的配置：
+
+```
+rbd/{rbd_name}      id=admin,keyring=/etc/ceph/ceph.client.admin.keyring
+```
+
+`{rbd_name}` 是你需要自动 map 的 rbd 名称，比如你改成 `foo`，这样 Ceph 就会在开机的时候自动映射 `foo` 块设备。
+
+接下来就简单了，我们可以像普通硬盘一样开机挂载了。编辑 `/etc/fstab`，添加一行自动挂载的配置
+
+```
+/dev/rbd/rbd/{rbd_name} /mnt/rbd ext4 defaults,noatime,_netdev 0 2
+```
+
+这里的 `{rbd_name}` 同样需要改成对应的 rbd 实际名称，**同时需要注意加上 `_netdev` 选项，表示是网络设备。**
 
 
 

@@ -1,0 +1,59 @@
+[2021-05-13 17:53:53,554][ceph_deploy.conf][DEBUG ] found configuration file at: /root/.cephdeploy.conf
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ] Invoked (2.1.0): /usr/local/bin/ceph-deploy disk zap node1 /dev/sdc
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ] ceph-deploy options:
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  verbose                       : False
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  quiet                         : False
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  username                      : None
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  overwrite_conf                : False
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  ceph_conf                     : None
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  cluster                       : ceph
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  subcommand                    : zap
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  cd_conf                       : <ceph_deploy.conf.cephdeploy.Conf object at 0x7f8217b6a4f0>
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  default_release               : False
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  func                          : <function disk at 0x7f8217b3fd30>
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  host                          : node1
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  disk                          : ['/dev/sdc']
+[2021-05-13 17:53:53,555][ceph_deploy.cli][INFO  ]  debug                         : False
+[2021-05-13 17:53:53,556][ceph_deploy.osd][DEBUG ] zapping /dev/sdc on node1
+[2021-05-13 17:53:55,368][node1][DEBUG ] connected to host: node1 
+[2021-05-13 17:53:55,415][ceph_deploy.osd][INFO  ] Distro info: ubuntu 20.04 focal
+[2021-05-13 17:53:55,436][node1][INFO  ] Running command: /usr/sbin/ceph-volume lvm zap /dev/sdc
+[2021-05-13 17:54:03,571][node1][WARNING] --> Zapping: /dev/sdc
+[2021-05-13 17:54:03,590][node1][WARNING] --> --destroy was not specified, but zapping a whole device will remove the partition table
+[2021-05-13 17:54:03,590][node1][WARNING] Running command: /usr/bin/dd if=/dev/zero of=/dev/sdc1 bs=1M count=10 conv=fsync
+[2021-05-13 17:54:03,590][node1][WARNING]  stderr: 记录了10+0 的读入
+[2021-05-13 17:54:03,590][node1][WARNING] 记录了10+0 的写出
+[2021-05-13 17:54:03,590][node1][WARNING]  stderr: 10485760字节（10 MB，10 MiB）已复制，0.827571 s，12.7 MB/s
+[2021-05-13 17:54:03,590][node1][WARNING] Running command: /usr/bin/dd if=/dev/zero of=/dev/sdc bs=1M count=10 conv=fsync
+[2021-05-13 17:54:03,591][node1][WARNING]  stderr: 记录了10+0 的读入
+[2021-05-13 17:54:03,591][node1][WARNING] 记录了10+0 的写出
+[2021-05-13 17:54:03,591][node1][WARNING]  stderr: 10485760字节（10 MB，10 MiB）已复制，0.658838 s，15.9 MB/s
+[2021-05-13 17:54:03,591][node1][WARNING] --> Zapping successful for: <Raw Device: /dev/sdc>
+[2021-05-13 17:54:12,950][ceph_deploy.conf][DEBUG ] found configuration file at: /root/.cephdeploy.conf
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ] Invoked (2.1.0): /usr/local/bin/ceph-deploy osd create --data /dev/sdc node1
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ] ceph-deploy options:
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  verbose                       : False
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  quiet                         : False
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  username                      : None
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  overwrite_conf                : False
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  ceph_conf                     : None
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  cluster                       : ceph
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  subcommand                    : create
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  cd_conf                       : <ceph_deploy.conf.cephdeploy.Conf object at 0x7fa5e87078b0>
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  default_release               : False
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  func                          : <function osd at 0x7fa5e867dca0>
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  data                          : /dev/sdc
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  journal                       : None
+[2021-05-13 17:54:12,950][ceph_deploy.cli][INFO  ]  zap_disk                      : False
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  fs_type                       : xfs
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  dmcrypt                       : False
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  dmcrypt_key_dir               : /etc/ceph/dmcrypt-keys
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  filestore                     : None
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  bluestore                     : None
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  block_db                      : None
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  block_wal                     : None
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  host                          : node1
+[2021-05-13 17:54:12,951][ceph_deploy.cli][INFO  ]  debug                         : False
+[2021-05-13 17:54:12,952][ceph_deploy.osd][DEBUG ] Creating OSD on cluster ceph with data device /dev/sdc
+[2021-05-13 17:54:12,952][ceph_deploy][ERROR ] RuntimeError: bootstrap-osd keyring not found; run 'gatherkeys'
+

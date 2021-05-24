@@ -69,7 +69,7 @@
 #
 [Storage]
 # 并行获取多少扇区的上限
-  ParallelFetchLimit = 10
+  ParallelFetchLimit = 4
   AllowAddPiece = false
   AllowPreCommit1 = false
   AllowPreCommit2 = false
@@ -78,8 +78,8 @@
 #
 [Fees]
 # 最大支付的gas Fee
-  MaxPreCommitGasFee = "0.025 FIL"
-  MaxCommitGasFee = "0.05 FIL"
+  MaxPreCommitGasFee = "0.015 FIL"
+  MaxCommitGasFee = "0.03 FIL"
   MaxTerminateGasFee = "0.5 FIL"
 # 提交时空证明所需支付的最大gas Fee
   MaxWindowPoStGasFee = "2 FIL"

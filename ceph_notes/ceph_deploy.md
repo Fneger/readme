@@ -14,7 +14,9 @@ sudo hdparm -I /dev/sda | grep -i speed
 
 dmesg | grep -i sata | grep 'link up'
 
+查看PG信息
 
+ceph pg dump
 
 ## 硬件要求
 
@@ -60,10 +62,15 @@ cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 ### 更新ceph源
 
+```
 wget -q -O- 'http://mirrors.163.com/ceph/keys/release.asc' | sudo apt-key add -
 echo deb http://mirrors.163.com/ceph/debian-nautilus/ $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/ceph.list
 echo deb http://mirrors.163.com/ceph/debian-octopus/ $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/ceph.list
+
 apt-get update
+```
+
+
 设置hostname
 hostnamectl set-hostname node0
 hostnamectl set-hostname node1
@@ -95,6 +102,15 @@ ceph-deploy purge {hostname [hostname] ...}
 
 此工具会从指定主机上卸载 `ceph` 软件包，另外 `purge` 会删除配置文件。
 
+重新安装节点需删除节点ceph相关数据
+
+```
+rm -rvf /var/lib/ceph/
+rm -rvf /var/run/ceph/
+```
+
+
+
 #### 安装ceph-deploy
 
 apt-get install python3 python3-pip -y
@@ -103,7 +119,6 @@ git clone https://github.com/ceph/ceph-deploy.git
 cd ceph-deploy
 pip3 install setuptools
 python3 setup.py install
-
 
 设置deploy节点和其他节点免密
 sed -i '/PermitRootLogin/d' /etc/ssh/sshd_config
@@ -122,11 +137,11 @@ vi /etc/hosts
 mkdir /etc/ceph 
 cd /etc/ceph
 创建一个新的集群
-ceph-deploy new ceph1
+ceph-deploy new admin-node
 修改配置文件
 public_network = 192.168.51.0/24
 给所有的节点安装 ceph
-ceph-deploy install ceph1 ceph2 ceph3
+ceph-deploy install admin-node node0
 各個節點安裝相關組件
 apt-get install ceph ceph-osd ceph-mds ceph-mon radosgw
 部署 MON 监控节点，在当前部署节点初始化
@@ -140,11 +155,19 @@ ceph-deploy mgr create ceph1
 
 service ceph-mgr@ceph1 start
 
+设置各个节点，并同步到各个节点
+
+```bash
+ceph-deploy admin ceph1 ceph2 ceph3
+```
+
 创建osd节点前格式化磁盘
 格式化osd节点对应磁盘设备
 ceph-deploy disk zap node /dev/sdc
 创建一个OSD节点
 ceph-deploy osd create --data /dev/sdc node
+
+ceph-deploy osd create --data /dev/nvme0n1 host-192-168-1-13
 
 重启ceph mon
 systemctl restart ceph-mon.target

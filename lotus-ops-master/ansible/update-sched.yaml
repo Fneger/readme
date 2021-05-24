@@ -1,0 +1,10 @@
+- hosts: precommit-worker
+  remote_user: '{{ remote_user }}'
+  become: yes
+  become_user: root
+  become_method: sudo
+  tasks:
+    - name: Copy myscheduler config to worker
+      copy:
+        src: '{{ workspace }}/lotus-ops/config/myscheduler-precommit.json'
+        dest: '{{ lotus_worker_path }}/myscheduler.json'

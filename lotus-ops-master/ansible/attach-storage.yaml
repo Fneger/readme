@@ -1,0 +1,10 @@
+- hosts: miner
+  remote_user: '{{ remote_user }}'
+  environment:
+    LOTUS_MINER_PATH: '{{ lotus_miner_path }}'
+  tasks:
+    - debug: var=ansible_all_ipv4_addresses
+    - debug: var=miner_store_path
+
+    - name: Attach lotus store storage
+      shell: 'lotus-miner storage attach --store --init {{ miner_store_path }}'

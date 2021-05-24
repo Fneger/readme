@@ -1,5 +1,9 @@
---------------------------------------------------------学习资料地址--------------------------------------------------------------------
+# lotus部署常用命令
+
+## 学习资料地址
+
 常用链接地址：
+
 >【Filecoin 中国社区论坛】（论坛末尾有旧版资源链接）：
 https://github.com/filecoin-project/community-china
 【备用网址，不用翻墙】（有时候不稳定）: 
@@ -19,19 +23,32 @@ https://github.com/filecoin-project/community-china/blob/master/documents/tutori
 【Calibration 测试网使用教程】（半新手专用）：
 https://github.com/filecoin-project/community-china/blob/master/documents/tutorial/use_cali-net_tutorial/use_cali-net_tutorial.md
 ----------------------------------------------------------------------------------------------------------------------------------------
---------------------------设置交换分区---------------------------
+
+
+## 设置交换分区
+
 sudo fallocate -l 256G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
-# show current swap spaces and take note of the current highest priority
+
+show current swap spaces and take note of the current highest priority
+
 swapon --show
-# append the following line to /etc/fstab (ensure highest priority) and then reboot
-# /swapfile swap swap pri=50 0 0
+
+append the following line to /etc/fstab (ensure highest priority) and then reboot
+
+/swapfile swap swap pri=50 0 0
+
 sudo reboot
-# check a 256GB swap file is automatically mounted and has the highest priority
+
+check a 256GB swap file is automatically mounted and has the highest priority
+
 swapon --show
-----------------------------------------------------------------
+
+
+
+## 常用系统操作
 
 磁盘管理工具 gparted:
 安装 sudo apt-get install gparted
@@ -56,17 +73,33 @@ screen -X -S 4635 quit
 nohup lotus daemon >> /data/lotus.log 2>&1 &
 查看显卡信息
 sudo lshw -numeric -class video
--------------------------------------lotus 编译----------------------------------------------
---------------------构建lotus---------------------
-make clean && make all # mainnet
 
-# Or to join a testnet or devnet:
+查看文件夹大小
+
+du -s {filename}
+
+## lotus 编译
+
+### 构建lotus
+
+**AMD Zen或Intel Ice Lake CPU（或更高版本）**
+
+nightly-2020-10-05
+
+```sh
+export RUSTFLAGS="-C target-cpu=native -g"
+export FFI_BUILD_FROM_SOURCE=1
+```
+
+make clean && make all # mainnet Or to join a testnet or devnet:
+
 make clean && make calibnet # Calibration with min 32 GiB sectors
 make clean && make nerpanet # Nerpa with min 512 MiB sectors
 
 sudo make install
--------------------------------------------------
----------------------升级-------------------------
+
+### 升级
+
 支持SHA扩展（前提cpu支持SHA扩展）
 export RUSTFLAGS="-C target-cpu=native -g"
 export FFI_BUILD_FROM_SOURCE=1
@@ -80,19 +113,27 @@ make install
 make clean calibnet
 
 RUST_LOG=Trace
---------------------------------------------------
 
----------------------------------------------------------------------------------------------
 
---------------------------------------worker--------------------------------------------------
+
+
+
+## worker
+
 启动远程worker
+
 lotus-worker run --listen=192.168.51.10:2345 --addpiece=true --precommit1=true --precommit2=true --commit=true --unseal=true
-----------------------------------------------------------------------------------------------
 
 
----------------------------------------miner--------------------------------------------------
+
+## miner
+
+[推荐配置](https://github.com/shannon-6block/lotus-miner)
+
 nohup lotus-miner run > ~/miner.log 2>&1 &
-# 查看日志
+
+查看日志
+
 tail -f ~/miner.log
 
 RUST_LOG=Trace lotus-miner run
@@ -110,7 +151,7 @@ lotus-miner auth api-info --perm admin
 lotus-miner actor set-addrs /ip4/<YOUR_PUBLIC_IP_ADDRESS>/tcp/24001
 
 首次启动矿工
-lotus-miner init --owner=<address>  --worker=<address> --no-local-storage
+lotus-miner init --owner=<address>  --worker=<address> --no-local-storage --sector-size=32GiB
 --worker可后续添加
 --no-local-storage 指定特定储存位置，建议使用
 
@@ -122,31 +163,48 @@ lotus-miner storage attach --init --store <PATH_FOR_LONG_TERM_STORAGE>
 lotus-miner storage list
 移动位置参见  https://docs.filecoin.io/mine/lotus/miner-lifecycle/#changing-storage-locations
 
-# 备份
-# step1 创建备份文件夹
+
+
+## 备份
+
+step1 创建备份文件夹
+
 mkdir -p ~/lotus-backups/2020-12-15
-# step2 备份
+
+step2 备份
+
 lotus-miner backup ~/lotus-backups/2020-12-15/backup.cbor # 需要设置LOTUS_BACKUP_BASE_PATH
 lotus-miner backup --offline ~/lotus-backups/2020-12-15/backup.cbor
-# step3 备份config.toml 和 storage.json
+
+step3 备份config.toml 和 storage.json
+
 cp ~/.lotusminer/config.toml ~/.lotusminer/storage.json ~/lotus-backups/2012-12-15
 
-# 恢复
-# step1 拷贝backup.cbor, config.toml, storage.json到miner所在的机器
-# step2 从备份文件恢复
+## 恢复
+step1 拷贝backup.cbor, config.toml, storage.json到miner所在的机器
+
+step2 从备份文件恢复
+
 lotus-miner init resotre ~/lotus-backups/2020-12-15/backup.cbor
-# step3 拷贝覆盖config.toml 和 storage.json
+
+step3 拷贝覆盖config.toml 和 storage.json
+
 cp ~/lotus-backups/2020-12-15/config.toml ~/lotus-backups/2020-12-15/storage.json $LOTUS_MINER_PATH/
-# step4 启动miner
+
+step4 启动miner
+
 lotus-miner run
 
+## 通过ip从众多worker机器中找出没有运行的worker
 
-# 通过ip从众多worker机器中找出没有运行的worker
 lotus-miner sealing workers |grep Worker| awk '{ print $4}' | awk -F: '{print $1}' |awk -F. '{print $4}' |sort -n
-# 查找存储下的tmp文件
+
+查找存储下的tmp文件
+
 sudo find  .  -maxdepth 5 -type f -name "*.tmp"
 
-# 批量删除sealing jobs
+批量删除sealing jobs
+
 lotus-miner sealing jobs |awk '{print $1}' > remove.job
 cat remove.job |xagrs -n 1 lotus-miner sealing abort
 
@@ -155,8 +213,14 @@ m=$(ls /data |xargs -n 1);for i in $m ; do  touch "/data/$i/data-$i"; echo "/dat
 
 ip=10.0.228.201;m=$(ls /mnt/$ip |xargs -n 1);for i in $m ; do  touch "/mnt/$ip/$i/mountpoint"; echo "/mnt/$i/" > "/mnt/$ip/$i/mountpoint";cat "/mnt/$ip/$i/mountpoint"; done
 
----------------------备份和还原--------备份------------------
+
+
+## 备份和还原
+
+### 备份
+
 此过程备份Lotus Miner的元数据，这是恢复操作所必需的。此备份不包括扇区数据。
+
 1. 创建此备份的目录：
 mkdir -p ~/lotus-backups/2020-11-15
 2. 致电backup备份您的矿工并提供backup.cbor文件的目的地：
@@ -169,10 +233,9 @@ lotus-miner backup --offline /root/lotus-backups/2020-11-15/backup.cbor
 cp ~/.lotusminer/config.toml ~/.lotusminer/storage.json /root/lotus-backups/2020-11-15
 备份现已完成。存储备份时，请始终遵循3-2-1规则：
 保留至少三（3）个数据副本，并将两（2）个备份副本存储在不同的存储介质上，其中一（1）个位于场外
-------------------------------------------------------------
----------------------备份和还原--------恢复------------------
-1. 如果您的backup.cbor，config.toml和storage.json文件位于另一台计算机上，则将其复制到该矿机。
+### 恢复
 
+1. 如果您的backup.cbor，config.toml和storage.json文件位于另一台计算机上，则将其复制到该矿机。
 2. 致电restore以从备份文件恢复您的矿工：
 lotus-miner init restore /root/lotus-backups/2020-11-15/backup.cbor
 3. 复制config.toml并storage.json存入~/.lotusminer：
@@ -180,10 +243,10 @@ cp lotus-backups/2020-11-15/config.toml lotus-backups/2020-11-15/storage.json .l
 4. 启动您的矿工：
 lotus-miner run
 ------------------------------------------------------------
-----------------------------------------------------------------------------------------------
 
 
-----------------------------------------扇区操作----------------------------------------------
+## 扇区操作
+
 查看扇区信息
 lotus-miner sectors list
 查看扇区状态
@@ -215,12 +278,15 @@ lotus-miner proving faults
 查看窗口錯誤扇區
 lotus-miner proving deadline 5
 檢查窗口錯誤扇區
+
 lotus-miner proving check --only-bad 5
-----------------------------------------------------------------------------------------------
 
 
--------------------------------交易相关-------------------------------------------------------
------------------------配置----------------------------
+
+## 交易相关
+
+### 配置
+
 Lotus矿工接单配置
 Deal配置 - Miner有公网IP
 假设Miner的公网IP为123.123.73.123，内网IP为10.4.0.100。
@@ -237,8 +303,8 @@ ListenAddresses = ["/ip4/123.123.73.123/tcp/1024", "/ip6/::/tcp/0"]
 这里的multiaddress即为上面第(1)步中配置的ListenAddresses的地址。
 
 lotus-miner actor set-addrs /ip4/123.123.73.123/tcp/1024
+
 设置完等待消息确认后，可以通过以下命令查看结果:
----------------------------------------------------------
 
 lotus state miner-info [t0xxxx]
 
@@ -250,8 +316,9 @@ StorageDealCheckForAcceptance
 StorageDealAwaitingPreCommit
 StorageDealSealing
 StorageDealActive
+
 可通过命令 ~/git2/lotus/lotus client list-deals 查看交易的状态信息，当交易达到最后一个 StorageDealActive 状态的时候，表明这笔交易已经完成。在整个交易的过程中，最耗时的是从 StorageDealAwaitingPreCommit 状态到 StorageDealSealing 状态，一般需要等待 5 个小时以上，其它状态耗时相对比较短。
-------------------------------------------------------------
+
 关闭接单功能 ConsiderOnlineStorageDeals = false （lotus-miner confid.toml）或 otus-miner storage-deals selection reject --online --offline
 设置存储交易价格等参数
 lotus-miner storage-deals set-ask \
@@ -298,7 +365,10 @@ lotus-miner storage-deals reset-blocklist
 
 lotus-miner storage-deals import-data <dealCid> <filePath>
 
------------lotus 存储数据和检索数据-----------------------------------
+
+
+## lotus 存储数据和检索数据
+
 在本地添加文件
 lotus client import test-add.txt
 列出本地文件
@@ -329,15 +399,21 @@ lotus client retrieve <Data CID> <outfile>
 通过CID查找数据信息
 lotus client find <Data CID>
 通过数据 CID 检索数据，并把检索到的数据保存到 ./tmp.log 文件中
+
 lotus client retrieve <Data CID> <outfile>
----------------------------------------------------------------------
+
 ----------------------------------------------------------------------------------------------
 
 
--------------------------------节点操作-------------------------------------------------------
-# 加速首次启动 proof parameter 下载
+
+## 节点操作
+
+加速首次启动 proof parameter 下载
+
 export IPFS_GATEWAY=https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/
-# 加快lotus 构建时Go依赖模块下载
+
+加快lotus 构建时Go依赖模块下载
+
 export GOPROXY=https://goproxy.cn
 
 lotus安裝好後，配置相關環境變量
@@ -362,8 +438,10 @@ Daemon配置文件默认在~/.lotus/config.toml文件中, 若配置了$LOTUS_PAT
 
 [API]
 ListenAddress = "/ip4/<DAEMON_IP_ADDRESS>/tcp/1234/http"
-#  RemoteListenAddress = ""
-#  Timeout = "30s"
+
+RemoteListenAddress = ""
+
+Timeout = "30s"
 
 lotus net peers
 lotus sync status
@@ -379,19 +457,59 @@ lotus new connect <api:token>
 查看lotus node相关信息
 lotus auth api-info --perm admin
 
-# 设置FULLNODE_API_INFO 环境变量
+设置FULLNODE_API_INFO 环境变量
+
 export FULLNODE_API_INFO="TOKEN:/ip4/<ip>/tcp/<port>/http"
-# FULLNODE_API_INFO 值通过如下命令产生, ip需要修改
+
+FULLNODE_API_INFO 值通过如下命令产生, ip需要修改
+
 lotus auth api-info --perm admin
 查看链头
 lotus chain head
 打印块信息
 lotus chain getblock <block_cid>
 打印链中消息信息
-lotus chain getmessage <message_cid>
----------------------------------------------------------------------------------------------
 
---------------------2k devnet---------------------------------
+lotus chain getmessage <message_cid>
+
+### Daemon节点公网IP配置
+
+给Daemon节点配置公网IP以后，可以让节点更稳定、更健康，评分更高，不错过任何一个爆块机会。
+
+#### 1.1 配置公网IP
+
+配置公网IP分如下两种情况：
+**(1) Daemon有公网IP**
+假设Daemon的公网IP为`123.123.73.123`，内网IP为`10.0.1.100`，Daemon监听的端口为`1234`。
+
+**(2) Daemon无公网IP**
+如果Daemon没有公网IP，就需要在路由器、或有公网IP的服务器上，增加公网IP和端口向Daemon内网IP和端口的转发规则，假设公网机器的IP为`123.123.73.123`，Daemon的内网IP为`10.0.1.100`，`123.123.73.123:12340`端口映射到内网的`10.0.1.100:1234`端口。
+
+#### 1.2 更改Daemon配置
+
+修改`$LOTUS_PATH/config.toml`文件中的以下内容：
+
+- 将`ListenAddresses`中的端口改为内网的端口，如`1235`，IP为`0.0.0.0`不用改;
+- 将`AnnounceAddresses`中的IP改为公网IP，如`123.123.73.123`，端口改为公网端口`12350`。
+
+```
+[Libp2p]
+ListenAddresses = ["/ip4/0.0.0.0/tcp/1235", "/ip6/::/tcp/0"]
+AnnounceAddresses = ["/ip4/123.123.73.123/tcp/12350"]
+```
+
+注意：**要修改的是Libp2p部分，而不是API部分。**
+
+修改好并重启Daemon后，可以通过以下命令，查看Daemon的公网连接地址：
+
+```
+lotus net listen
+```
+
+
+
+## 2k devnet
+
 export LOTUS_SKIP_GENESIS_CHECK=_yes_
 下載2048字節證明參數
 ./lotus fetch-params 2048
@@ -401,7 +519,7 @@ export LOTUS_SKIP_GENESIS_CHECK=_yes_
 ./lotus-seed genesis new localnet.json
 ./lotus-seed genesis add-miner localnet.json ~/.genesis-sectors/pre-seal-t01000.json
 ./lotus daemon --lotus-make-genesis=devgen.car --genesis-template=localnet.json --bootstrap=false
-在另一个控制台中，导入ge​​nesis miner密钥：
+在另一个控制台中，导入genesis miner密钥：
 ./lotus wallet import --as-default ~/.genesis-sectors/pre-seal-t01000.key
 设置创世矿工：
 ./lotus-miner init --genesis-miner --actor=t01000 --sector-size=2KiB --pre-sealed-sectors=~/.genesis-sectors --pre-sealed-metadata=~/.genesis-sectors/pre-seal-t01000.json --nosync --no-local-storage --owner= --create-worker-key=true
@@ -415,12 +533,17 @@ lotus daemon --genesis=devgen.car --profile=bootstrapper
 启动其他节点
 lotus daemon --genesis=devgen.car --bootstrap=false
 初始化新节点
-lotus-miner init --sector-size=2KiB --no-local-storage --owner= --worker=
---------------------------------------------------------------
 
---------------------------------------消息池-------------------------------------------------
+lotus-miner init --sector-size=2KiB --no-local-storage --owner= --worker=
+
+
+
+## 消息池
+
 查詢當前BaseFee信息
-# Will print the last BaseFee in attoFIL
+
+Will print the last BaseFee in attoFIL
+
 lotus chain head | xargs lotus chain getblock | jq -r .ParentBaseFee
 
 新的gas溢价低于原始比率的1.25，则该消息将不包含在池中
@@ -437,19 +560,29 @@ lotus mpool pending --local | grep "Nonce" -A5
 替换池中的关联消息，并根据当前的网络状况估算出新的GasPremium和GasFeeCap来自动对其重新定价。您还可以设置--max-fee是否希望限制用于消息的总金额。所有其他标志都将被忽略。
 lotus mpool replace --auto <from> <nonce>
 或者，可以使用各自的标志手动设置GasPremium，GasFeeCa（新的天然气溢价低于原始比率的1.25，则该消息将不包含在池中）
-lotus mpool replace --gas-feecap <feecap> --gas-premium <premium> <from> <nonce>
---------------------------------------------------------------------------------------------
 
-------------------------钱包操作-------------------------------------------------------------
-# 创建钱包
+lotus mpool replace --gas-feecap <feecap> --gas-premium <premium> <from> <nonce>
+
+
+
+## 钱包操作
+
+创建钱包
+
 lotus wallet new bls	# BLS wallet
 lotus wallet new 	# secp256k1 wallet
 lotus msig create singeraddress1 signersaddress2..	# multisig wallet
-# 备份钱包
+
+备份钱包
+
 lotus wallet export <address> > <address>.key
-# 导入钱包
+
+导入钱包
+
 lotus wallet import <address>.key
-# 发送FIL
+
+发送FIL
+
 lotus send <receive address> 3	#从默认钱包发送
 lotus send --from <send address> <receive address> 3	#从指定钱包发送
 查看钱包列表
@@ -468,9 +601,13 @@ lotus-miner actor set-owner --really-do-it <address>
 控制地址用于支付提交WindowPoSts证明所需费用(设置配置地址后，要修改相应配置文件)
 lotus-miner actor control set --really-do-it <address>
 从矿工actor提款到owner所在账户
+
 lotus-miner actor withdraw <amount>
-------------------------------------------------------------
-----------------多重签名钱包---------------------------------
+
+
+
+## 多重签名钱包
+
 创建3个f3地址
 lotus wallet new bls
 lotus wallet new bls
@@ -496,35 +633,134 @@ lotus msig propose --from $newadress1 $f2address $destaddress 0.1
 $newadress2查看pending中的交易id
 lotus msig inspect $f2adressid
 $newadress2同意该笔交易
+
 lotus msig approve --from $newadress2 $f2adressid $transaction_id
--------------------------------------------------------------
---------------------------------安全重启-------------------------------
+
+
+
+## 安全重启
+
 是否可以重啓礦工，狀態檢查
 1.Deadlines不早於Current Epoch，如果存在故障，必须大约45分钟才能使矿工重新联机以声明故障，这称为Deadline FaultCutoff，如果矿工没有故障，那么大约有一个小时的时间。
 2.等待所有封裝任務任務完成
 
 
 强制结束lotus-worker后，需要重启终端再执行（一般情况下不允许强制结束worker）
-# tips1 尽量缩短miner离线时间
-# tips2 确保current deadline窗口的证明已经提交
+
+tips1 尽量缩短miner离线时间
+
+tips2 确保current deadline窗口的证明已经提交
+
 lotus-miner proving deadlines
-# tips3 检查并暂时停止交易（deals）
+
+tips3 检查并暂时停止交易（deals）
+
 lotus-miner storage-deals list
 lotus-miner retrieval-deals list
 lotus-miner data-transfers list
-## 拒绝交易
+
+拒绝交易
+
 lotus-miner storage-deals selection reject --online --offline
 lotus-miner retrieval-deals selection reject --online --offline
-## 重启之后
+
+重启之后
+
 lotus-miner storage-deals selection reset
 lotus-miner retrieval-deals selection reset
-# tips4 检查正在进行中的封装操作
-lotus-miner sectors list
-# tips5 重启miner
-lotus-miner stop
-lotus-miner start
----------------------------------------------------------------------
 
-測試封裝速度
-RUST_LOG=info ./lotus-bench sealing --storage-dir /mnt/lotus-bench --sector-size 32GiB --num-sectors 28 --skip-unseal --parallel 28 --skip-commit2 --no-gpu
+tips4 检查正在进行中的封装操作
+
+lotus-miner sectors list
+
+tips5 重启miner
+
+lotus-miner stop
+
+lotus-miner start
+
+
+
+## 測試封裝速度
+
+RUST_LOG=Trace ./lotus-bench sealing --storage-dir /data/lotus-bench --sector-size 32GiB --num-sectors 1 --skip-unseal --parallel 1
+
+Address                                                                                 ID       Balance                      Nonce  Default  
+t3uhbuy6cxjlcfjoaz66u7blhzs72wsmrpaouom7kzqysx73ltsewnvxkt62hnpcg7x6gwgwl6tgmupbgwocga  t013950  4977.999995689685577955 FIL  8      X        
+t3untyjoqp4e6bptsyes4lxteefafkyuz7urqwauezb6es3omiiifc62oxunab7bdfpeayo76jsagn56usrdsa  t013987  6 FIL                        0               
+t3wlps2l7wm34bnh2msxoxwpke5agcwnpdyuzvlfk5gdf4zsivhdy42sgmcyqtafnpl7lw2dn5a7xjvkxcdnqq  t013988  6 FIL                        0               
+t3ww7jsaiqetqqgtcucfzgqjgz3hwxwpjszjenydt3kmivbftphhvm4xm3t26mmvk5wytqqzvkfndx4e4szfta  t013978  10 FIL                       0 
+
+/dns4/bootstrap-0.calibration.fildev.network/tcp/1347/p2p/12D3KooWRLZAseMo9h7fRD6ojn6YYDXHsBSavX5YmjBZ9ngtAEec
+
+environment variable list:
+FIL_PROOFS_USE_MULTICORE_SDR=1
+BELLMAN_CUSTOM_GPU=GeForce RTX 3080 Ti:2206
+FIL_PROOFS_MAXIMIZE_CACHING=1
+FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1
+
+FIL_PROOFS_USE_GPU_TREE_BUILDER=1
+
+results (v28) SectorSize:(536870912), SectorNumber:(1)
+seal: addPiece: 2.018679638s (253.6 MiB/s)
+seal: preCommit phase 1: 32.049514637s (15.98 MiB/s)
+seal: preCommit phase 2: 13.349490706s (38.35 MiB/s)
+seal: commit phase 1: 54.148268ms (9.234 GiB/s)
+seal: commit phase 2: 13.780121662s (37.15 MiB/s)
+seal: verify: 4.816759ms
+
+generate candidates: 111.134µs (4.394 TiB/s)
+compute winning post proof (cold): 1.665371218s
+compute winning post proof (hot): 1.575347854s
+verify winning post proof (cold): 69.917096ms
+verify winning post proof (hot): 4.430254ms
+
+compute window post proof (cold): 849.624396ms
+compute window post proof (hot): 807.811098ms
+verify window post proof (cold): 34.598113ms
+verify window post proof (hot): 6.171889ms
+
+## CPU开启性能模式
+
+#### 临时开启
+
+安装cpufrequtils
+
+```
+sudo apt-get install cpufrequtils
+```
+
+查看当前cpu的状态
+
+```
+cpufreq-info
+```
+
+设置为性能模式
+
+```
+sudo cpufreq-set -g performance
+```
+
+### 开机默认启动性能模式
+
+使用上述方式，重启系统后又回到默认方式。修改默认模式:
+
+安装sysfsutils
+
+```
+sudo apt-get install sysfsutils
+```
+
+编辑/etc/sysfs.conf，增加如下语句:
+
+```
+devices/system/cpu/cpu0/cpufreq/scaling_governor = performance
+```
+
+查看CPU工作频率
+
+```
+watch grep \"cpu MHz\" /proc/cpuinfo
+```
 

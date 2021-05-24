@@ -1,0 +1,22 @@
+- hosts: precommit-worker
+  remote_user: '{{ remote_user }}'
+  gather_facts: no
+  become: yes
+  become_user: root
+  become_method: sudo
+  tasks:
+    - name: Create workspace directory
+      file:
+        path: '{{ workspace }}'
+        state: directory
+
+    - name: Copy make raid shell to remote server
+      copy:
+        src: '{{ workspace }}/lotus-ops/scripts/setup-ssd-raid-0.sh'
+        dest: '{{ workspace }}'
+        owner: '{{ remote_user }}'
+        group: '{{ remote_user }}'
+        mode: +x
+
+    - name: Setup raid0
+      shell: '{{ workspace }}/setup-ssd-raid-0.sh'

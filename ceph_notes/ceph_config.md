@@ -159,11 +159,792 @@ mon_host通过部署工具自动配置
 
 ## OSD配置
 
+[官方参考](https://www.bookstack.cn/read/ceph-en/c6d22bf663728a07.md)
 
+### 日志设置
 
-## PG配置
+默认情况下，Ceph希望您使用以下路径存储Ceph OSD Daemons日志：
 
+```
+/var/lib/ceph/osd/$cluster-$id/journal
+```
 
+当使用单一设备类型（例如，旋转驱动器）时，日志应位于*同一位置*：逻辑卷（或分区）应与`data`逻辑卷位于同一设备中。
+
+将快速（SSD，NVMe）设备与速度较慢的设备（如旋转驱动器）混合使用时，将日志放置在速度较快的设备上，而`data`完全占用速度较慢的设备是有意义的。
+
+默认`osd journal size`值为5120（5 GB），但可以更大，在这种情况下，需要在`ceph.conf`文件中进行设置：
+
+```
+osd journal size = 10240
+```
+
+```
+osd journal
+```
+
+- 描述
+- OSD日志的路径。这可能是文件或阻止设备（例如SSD的分区）的路径。如果是文件，则必须创建目录来包含它。我们建议使用与`osd data`驱动器分开的驱动器。
+- 类型
+- 细绳
+- 默认
+- `/var/lib/ceph/osd/$cluster-$id/journal`
+
+```
+osd journal size
+```
+
+- 描述
+- 日志的大小（以兆字节为单位）。
+- 类型
+- 32位整数
+- 默认
+- `5120`
+
+有关其他详细信息，请参见[日志配置参考](https://www.bookstack.cn/read/ceph-en/d594b128bab87fac.md)。
+
+#### Scrubbing
+
+除了制作对象的多个副本外，Ceph还通过scrub放置组来确保数据完整性。Ceph Scrub类似于`fsck`对象存储层上的scrub。对于每个放置组，Ceph都会生成所有对象的目录，并比较每个主要对象及其副本，以确保没有对象丢失或不匹配。轻scrub（每天）检查对象的大小和属性。深度scrub（每周一次）读取数据并使用校验和以确保数据完整性。
+
+Scrub对于保持数据完整性很重要，但是会降低性能。您可以调整以下设置以增加或减少Scrub操作。
+
+```
+sd max scrubs
+```
+
+- 描述
+- Ceph OSD守护程序的最大同时清理操作数。
+- 类型
+- 32位整数
+- 默认
+- `1`
+
+```
+osd scrub begin hour
+```
+
+- 描述
+- 可以执行计划的擦洗的下限的一天中的时间。
+- 类型
+- 整数，范围为0到24
+- 默认
+- `0`
+
+```
+osd scrub end hour
+```
+
+- 描述
+- 可以执行计划的擦洗的上限时间。与`osd scrub begin hour`一起定义了一个时间窗口，可以在其中进行清理。但是只要展示位置组的清理间隔超过，无论时间窗口允许与否，都将执行清理`osd scrub max interval`。
+- 类型
+- 整数，范围为0到24
+- 默认
+- `24`
+
+```
+osd scrub begin week day
+```
+
+- 描述
+- 这将清理时间限制在一周中的这一天或以后的一天。0或7 =星期日，1 =星期一，依此类推。
+- 类型
+- 整数，范围为0到7
+- 默认
+- `0`
+
+```
+osd scrub end week day
+```
+
+- 描述
+- 这将清理时间限制在早于此时间的一周中的几天.0或7 =星期日，1 =星期一，依此类推。
+- 类型
+- 整数，范围为0到7
+- 默认
+- `7`
+
+```
+osd scrub during recovery
+```
+
+- 描述
+- 恢复期间允许擦洗。将其设置为`false`会在活动恢复时禁用计划新的清理（和深度清理）。已经运行的清理将继续进行。这对于减少繁忙群集上的负载可能很有用。
+- 类型
+- 布尔型
+- 默认
+- `true`
+
+```
+osd scrub thread timeout
+```
+
+- 描述
+- 超时超时前（以秒为单位）。
+- 类型
+- 32位整数
+- 默认
+- `60`
+
+```
+osd scrub finalize thread timeout
+```
+
+- 描述
+- 超时清理终止finalize线程之前的最长时间（以秒为单位）。
+- 类型
+- 32位整数
+- 默认
+- `60*10`
+
+```
+osd scrub load threshold
+```
+
+- 描述
+- 归一化的最大负载。当系统负载（由定义`getloadavg() / number of online cpus`）高于此数字时，Ceph不会进行清理`0.5`。默认值为。
+- 类型
+- 漂浮
+- 默认
+- `0.5`
+
+```
+osd scrub min interval
+```
+
+- 描述
+- 当Ceph存储群集负载较低时，清理Ceph OSD守护程序的最小时间间隔（以秒为单位）。
+- 类型
+- 漂浮
+- 默认
+- 每天一次。 `60*60*24`
+
+```
+osd scrub max interval
+```
+
+- 描述
+- 清理Ceph OSD守护程序的最大时间间隔（以秒为单位），与群集负载无关。
+- 类型
+- 漂浮
+- 默认
+- 每周一次。 `7*60*60*24`
+
+```
+osd scrub chunk min
+```
+
+- 描述
+- 在单个操作期间要清理的对象存储块的最小数量.Ceph块在清理期间写入单个块。
+- 类型
+- 32位整数
+- 默认
+- 5
+
+```
+osd scrub chunk max
+```
+
+- 描述
+- 单个操作期间要清理的对象存储块的最大数量。
+- 类型
+- 32位整数
+- 默认
+- 25
+
+```
+osd scrub sleep
+```
+
+- 描述
+- 在擦洗下一组食物之前需要睡眠。增大此值将减慢整个清理操作，而对客户端操作的影响较小。
+- 类型
+- 漂浮
+- 默认
+- 0
+
+```
+osd deep scrub interval
+```
+
+- 描述
+- “深度”清理的间隔（完全读取所有数据）。在`osd scrub load threshold`不影响此设置。
+- 类型
+- 漂浮
+- 默认
+- 每周一次。 `60*60*24*7`
+
+```
+osd scrub interval randomize ratio
+```
+
+- 描述
+- `osd scrub min interval`在为展示位置组安排下一个清理作业时，添加一个随机延迟。延迟是小于的随机值`osd scrub min interval` *`osd scrub interval randomized ratio`。因此，默认设置实际上是在允许的时间范围内随机分配灌木丛`[1, 1.5]`* `osd scrub min interval`。
+- 类型
+- 漂浮
+- 默认
+- `0.5`
+
+```
+osd deep scrub stride
+```
+
+- 描述
+- 进行深层清洁时，请阅读尺码。
+- 类型
+- 32位整数
+- 默认
+- 512 KB。 `524288`
+
+```
+osd scrub auto repair
+```
+
+- 描述
+- `true`当在scrub或deep-scrub中发现错误时，将此选项设置为将启用自动pg修复。但是，如果`osd scrub auto repair num errors`发现的错误多于错误，则不会进行维修。
+- 类型
+- 布尔型
+- 默认
+- `false`
+
+```
+osd scrub auto repair num errors
+```
+
+- 描述
+- 如果发现的错误不止这些，将不会进行自动修复。
+- 类型
+- 32位整数
+- 默认
+- `5`
+
+#### Operations
+
+```
+osd op queue
+```
+
+- 描述
+- 这设置了用于对OSD的操作进行优先级排序的队列类型。这两个队列均具有严格的子队列，该子队列在普通队列之前已出队。普通队列在实现之间是不同的。原始的PrioritizedQueue（`prio`）使用令牌桶系统，当有足够的令牌时，它将首先使高优先级队列出队。如果没有足够的令牌，队列将从低优先级到高优先级出队`wpq`.WeightedPriorityQueue （）将与优先级相关的所有优先级出队，以防止任何队列饿死。新的基于mClock的OpClassQueue（`mclock_opclass`）会根据其所属的类（恢复，清理，snaptrim，客户端操作，osd子操作）对操作进行优先级排序。`mclock_client`）还加入了客户标识符，以促进客户之间的公平。请参阅[基于mClock的QoS](https://www.bookstack.cn/read/ceph-en/c6d22bf663728a07.md#qos-based-on-mclock)。需要重启。
+- 类型
+- 细绳
+- 有效选择
+- prio，wpq，mclock_opclass，mclock_client
+- 默认
+- `wpq`
+
+```
+osd op queue cut off
+```
+
+- 描述
+- 这将选择将哪个优先级ops发送到严格队列而不是普通队列。该`low`设置将所有复制操作和更高版本发送到严格队列，而该`high`选项仅将复制确认操作和更高版本发送到严格队列。如果`high`群集中的一些OSD非常繁忙，尤其是与`wpq`该`osd op queue`设置结合使用时，将其设置为应该会有所帮助。在没有这些设置的情况下，非常忙于处理复制流量的OSD可能会使主要客户端流量在这些OSD上饿死。需要重启。
+- 类型
+- 细绳
+- 有效选择
+- 低高
+- 默认
+- `high`
+
+```
+osd client op priority
+```
+
+- 描述
+- 为客户端操作设置的优先级。
+- 类型
+- 32位整数
+- 默认
+- `63`
+- 有效范围
+- 1-63
+
+```
+osd recovery op priority
+```
+
+- 描述
+- 为恢复操作设置的优先级，如果未由池的指定`recovery_op_priority`。
+- 类型
+- 32位整数
+- 默认
+- `3`
+- 有效范围
+- 1-63
+
+```
+osd scrub priority
+```
+
+- 描述
+- 当池未指定值时，为计划的清理工作队列设置的默认优先级`scrub_priority`。这可以提升为`osd client op priority`scrub阻止客户端操作时的值。
+- 类型
+- 32位整数
+- 默认
+- `5`
+- 有效范围
+- 1-63
+
+```
+osd requested scrub priority
+```
+
+- 描述
+- 在工作队列上为用户请求的清理设置的优先级。如果该值小于此值，则`osd client op priority`可以将其`osd client op priority`增大为when scrub阻止客户端操作的值。
+- 类型
+- 32位整数
+- 默认
+- `120`
+
+```
+osd snap trim priority
+```
+
+- 描述
+- 为对齐修剪工作队列设置的优先级。
+- 类型
+- 32位整数
+- 默认
+- `5`
+- 有效范围
+- 1-63
+
+```
+osd snap trim sleep
+```
+
+- 描述
+- 下一次快照修剪操作之前的睡眠时间（秒）。增加此值将减慢快照修剪。此选项将覆盖特定于后端的变量。
+- 类型
+- 漂浮
+- 默认
+- `0`
+
+```
+osd snap trim sleep hdd
+```
+
+- 描述
+- 下一次快速修整HDD之前，以秒为单位的睡眠时间。
+- 类型
+- 漂浮
+- 默认
+- `5`
+
+```
+osd snap trim sleep ssd
+```
+
+- 描述
+- 下一次快速修整opfor SSD之前，以秒为单位的睡眠时间。
+- 类型
+- 漂浮
+- 默认
+- `0`
+
+```
+osd snap trim sleep hybrid
+```
+
+- 描述
+- 当osd数据位于HDD上并且osd日志位于SSD上时，下一次快照修整之前的睡眠时间（以秒为单位）。
+- 类型
+- 漂浮
+- 默认
+- `2`
+
+```
+osd op thread timeout
+```
+
+- 描述
+- Ceph OSD守护程序操作线程超时（以秒为单位）。
+- 类型
+- 32位整数
+- 默认
+- `15`
+
+```
+osd op complaint time
+```
+
+- 描述
+- 在指定的秒数过去之后，一项操作值得投诉。
+- 类型
+- 漂浮
+- 默认
+- `30`
+
+```
+osd op history size
+```
+
+- 描述
+- 跟踪的已完成操作的最大数量。
+- 类型
+- 32位无符号整数
+- 默认
+- `20`
+
+```
+osd op history duration
+```
+
+- 描述
+- 要跟踪的最旧的已完成操作。
+- 类型
+- 32位无符号整数
+- 默认
+- `600`
+
+```
+osd op log threshold
+```
+
+- 描述
+- 一次显示多少个操作日志。
+- 类型
+- 32位整数
+- 默认
+- `5`
+
+## Pool，PG和CRUSH配置参考
+
+当您创建池并设置池的放置组数时，当您没有专门覆盖默认值时，Cephuses将使用默认值。**建议**覆盖一些默认值。具体来说，我们建议设置池的副本大小，并覆盖默认的放置组数。您可以在运行[池](https://www.bookstack.cn/read/ceph-en/1d9994450843e4a5.md)命令时专门设置这些值。您还可以通过在您`[global]`的Ceph配置文件的部分中添加新的默认值来覆盖默认值。
+
+```
+[global]
+ 
+# By default, Ceph makes 3 replicas of objects. If you want to make four
+# copies of an object the default value--a primary copy and three replica
+# copies--reset the default values as shown in 'osd pool default size'.
+# If you want to allow Ceph to write a lesser number of copies in a degraded
+# state, set 'osd pool default min size' to a number less than the
+# 'osd pool default size' value.
+ 
+    osd pool default size =3# Write an object 3 times.
+    osd pool default min size =2# Allow writing two copies in a degraded state.
+ 
+# Ensure you have a realistic number of placement groups. We recommend
+# approximately 100 per OSD. E.g., total number of OSDs multiplied by 100
+# divided by the number of replicas (i.e., osd pool default size). So for
+# 10 OSDs and osd pool default size = 4, we'd recommend approximately
+# (100 * 10) / 4 = 250.
+# always use the nearest power of 2
+ 
+    osd pool default pg num =256
+    osd pool default pgp num =256
+```
+
+```
+mon max pool pg num
+```
+
+- 描述
+- 每个池的最大放置组数。
+- 类型
+- 整数
+- 默认
+- `65536`
+
+```
+mon pg create interval
+```
+
+- 描述
+- 在同一个Ceph OSD守护进程中创建PG之间的秒数。
+- 类型
+- 漂浮
+- 默认
+- `30.0`
+
+```
+mon pg stuck threshold
+```
+
+- 描述
+- PG被认为卡住的秒数。
+- 类型
+- 32位整数
+- 默认
+- `300`
+
+```
+mon pg min inactive
+```
+
+- 描述
+- `HEALTH_ERR`如果PG保持不活动的时间`mon_pg_stuck_threshold`超过此设置的时间，请在群集日志中发出a 。非正数表示已禁用，请勿输入ERR。
+- 类型
+- 整数
+- 默认
+- `1`
+
+```
+mon pg warn min per osd
+```
+
+- 描述
+- `HEALTH_WARN`如果每个（在）OSD中的PG的平均数量低于此数量，请在群集日志中发出一个。（一个非正数会禁用此）
+- 类型
+- 整数
+- 默认
+- `30`
+
+```
+mon pg warn min objects
+```
+
+- 描述
+- 如果群集中的对象总数低于此数目，则不发出警告
+- 类型
+- 整数
+- 默认
+- `1000`
+
+```
+mon pg warn min pool objects
+```
+
+- 描述
+- 不要警告对象号低于此数字的池
+- 类型
+- 整数
+- 默认
+- `1000`
+
+```
+mon pg check down all threshold
+```
+
+- 描述
+- 降低OSD百分比的阈值之后，我们将检查所有PG中是否有过时的PG。
+- 类型
+- 漂浮
+- 默认
+- `0.5`
+
+```
+mon pg warn max object skew
+```
+
+- 描述
+- `HEALTH_WARN`如果某个池的`mon pg warn max object skew`平均对象数大于整个池的平均对象数，则在群集日志中发出a 。（零或非正数将禁用此功能）。请注意，此选项适用于管理者。
+- 类型
+- 漂浮
+- 默认
+- `10`
+
+```
+mon delta reset interval
+```
+
+- 描述
+- 在将pg delta重置为0之前不活动的秒数。我们跟踪每个池的已用空间的delta，因此，例如，对于我们来说，更容易理解恢复的进度或缓存层的性能。但是，如果没有报告某个特定池的活动，我们只需重置该池的增量历史记录即可。
+- 类型
+- 整数
+- 默认
+- `10`
+
+```
+mon osd max op age
+```
+
+- 描述
+- 我们担心之前的最大操作年龄（`HEALTH_WARN`设为2的幂）。如果请求被阻止的时间超过此限制，则将发出A。
+- 类型
+- 漂浮
+- 默认
+- `32.0`
+
+```
+osd pg bits
+```
+
+- 描述
+- 每个Ceph OSD守护程序的放置组位。
+- 类型
+- 32位整数
+- 默认
+- `6`
+
+```
+osd pgp bits
+```
+
+- 描述
+- PGP的每个Ceph OSD守护程序的位数。
+- 类型
+- 32位整数
+- 默认
+- `6`
+
+```
+osd crush chooseleaf type
+```
+
+- 描述
+- `chooseleaf`在CRUSH规则中使用的存储桶类型。使用顺序等级而不是名称。
+- 类型
+- 32位整数
+- 默认
+- `1`。通常，一台主机包含一个或多个Ceph OSD守护程序。
+
+```
+osd crush initial weight
+```
+
+- 描述
+- 将新添加的osds的初始压缩重量添加到rushmap中。
+- 类型
+- 双倍的
+- 默认
+- `the size of newly added osd in TB`。默认情况下，新添加的osd的初始压缩重量设置为以TB为单位的卷大小。有关详细信息，请参阅[加权存储桶项目](https://www.bookstack.cn/read/ceph-en/18e903f31a47a50b.md#weightingbucketitems)。
+
+```
+osd pool default crush rule
+```
+
+- 描述
+- 创建复制池时要使用的默认CRUSH规则。
+- 类型
+- 8位整数
+- 默认
+- `-1`，表示“选择数字ID最低的规则并使用该规则”。这是为了在没有规则0的情况下创建池。
+
+```
+osd pool erasure code stripe unit
+```
+
+- 描述
+- 设置擦除条纹池的对象条纹的默认大小（以字节为单位）。每个大小为S的对象将存储为N条，每个数据块接收`stripe unit`字节。每个`N *stripe unit`字节的条带将分别进行编码/解码。`stripe_unit`擦除代码配置文件中的设置可以覆盖此选项。
+- 类型
+- 无符号32位整数
+- 默认
+- `4096`
+
+```
+osd pool default size
+```
+
+- 描述
+- 设置池中对象的副本数。默认值与相同`ceph osd pool set {pool-name} size {size}`。
+- 类型
+- 32位整数
+- 默认
+- `3`
+
+```
+osd pool default min size
+```
+
+- 描述
+- 设置池中对象的最小写入副本数，以确认对客户端的写入操作。如果未达到最小值，则Ceph将不会确认对客户端的写入，**这可能会导致数据丢失**。此设置可确保在`degraded`模式下运行时的最小副本数。
+- 类型
+- 32位整数
+- 默认
+- `0`，这意味着没有特别的下限。如果`0`，最小值为`size - (size / 2)`。
+
+```
+osd pool default pg num
+```
+
+- 描述
+- 池的默认放置组数。将默认值是一样的`pg_num`用`mkpool`。
+- 类型
+- 32位整数
+- 默认
+- `16`
+
+```
+osd pool default pgp num
+```
+
+- 描述
+- 池放置的默认放置组数。默认值`pgp_num`与`mkpool`.PG相同，并且PGP应该相等（目前）。
+- 类型
+- 32位整数
+- 默认
+- `8`
+
+```
+osd pool default flags
+```
+
+- 描述
+- 新池的默认标志。
+- 类型
+- 32位整数
+- 默认
+- `0`
+
+```
+osd max pgls
+```
+
+- 描述
+- 要列出的展示位置组的最大数量。大量请求的客户端可以占用Ceph OSD守护程序。
+- 类型
+- 无符号64位整数
+- 默认
+- `1024`
+- 笔记
+- 默认应该没问题。
+
+```
+osd min pg log entries
+```
+
+- 描述
+- 修剪日志文件时要维护的最小放置组日志数。
+- 类型
+- 32位Int Unsigned
+- 默认
+- `1000`
+
+```
+osd default data pool replay window
+```
+
+- 描述
+- OSD等待客户端重播请求的时间（以秒为单位）。
+- 类型
+- 32位整数
+- 默认
+- `45`
+
+```
+osd max pg per osd hard ratio
+```
+
+- 描述
+- 在OSD拒绝创建新PG之前，集群允许的每个OSD PG数量的比率。如果OSD服务的PG数量超过`osd max pg per osd hard ratio`*，则OSD停止创建新的PG `mon max pg per osd`。
+- 类型
+- 漂浮
+- 默认
+- `2`
+
+```
+osd recovery priority
+```
+
+- 描述
+- 工作队列中恢复的优先级。
+- 类型
+- 整数
+- 默认
+- `5`
+
+```
+osd recovery op priority
+```
+
+- 描述
+- 如果不覆盖池，则用于恢复操作的默认优先级。
+- 类型
+- 整数
+- 默认
+- `3`
 
 ## CRUSH Map配置
 
@@ -689,3 +1470,8 @@ rbd import test_img_backup rbd/test_img_recover
 然后导入所有增量文件
 
 rbd import-diff test_img_to_snap1 rbd/test_img_recover
+
+
+
+## RBD客户端缓存
+

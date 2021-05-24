@@ -86,6 +86,24 @@ ceph crash archive-all
 
 
 
+### mon is allowing insecure global_id reclaim
+
+[官方参考](https://docs.ceph.com/en/octopus/rados/operations/health-checks/)
+
+### [errno 2] RADOS object not found (error connecting to the cluster)
+
+[参考博文](https://segmentfault.com/a/1190000012348586)
+
+### Reduced data availability: 10 pgs incomplete
+
+[参考博文](https://medium.com/opsops/recovering-ceph-from-reduced-data-availability-3-pgs-inactive-3-pgs-incomplete-b97cbcb4b5a1)
+
+[方法2](https://www.jianshu.com/p/36c2d5682d87)
+
+### Reduced data availability: 1 pg inactive
+
+[参考博文](https://zhuanlan.zhihu.com/p/74323736)
+
 ## 故障排查
 
 ### 记录和调试
@@ -299,7 +317,7 @@ $ ceph-mon -i ID —inject-monmap /tmp/monmap
 我怎么知道有时钟偏斜？
 
 ```
-监视器将以警告形式警告您HEALTH_WARN。ceph healthdetail应该以以下形式显示：
+监视器将以警告形式警告您HEALTH_WARN。ceph health detail应该以以下形式显示：
 mon.c addr 10.10.0.1:6789/0 clock skew 0.08235s > max 0.05s (latency 0.0045s)
 这意味着mon.c已将其标记为存在时钟偏斜。
 ```
@@ -1579,3 +1597,107 @@ sudo opcontrol --reset
 重要的
 
 您应该`oprofile`在分析数据之后进行重置，以免混淆来自不同测试的结果。
+
+
+
+## 监控OSD和PG
+
+[官方参考](https://www.bookstack.cn/read/ceph-en/a04e9208413f2a01.md)
+
+高可用性和高可靠性要求使用容错方法来管理硬件和软件问题。Ceph没有单点故障，并且可以以“降级”模式处理对数据的请求。Ceph的[数据放置](https://www.bookstack.cn/read/ceph-en/8974b638d017b8d9.md)引入了一个间接层，以确保数据不直接绑定到特定的OSD地址。这意味着要跟踪系统故障，需要找到问题根源的[放置组](https://www.bookstack.cn/read/ceph-en/4bc7afaecb4c1c71.md)和底层OSD。
+
+提示
+
+群集某一部分中的故障可能会阻止您访问特定的对象，但这并不意味着您无法访问其他对象。当您遇到故障时，请不要惊慌。只需按照监视OSD和放置组的步骤进行即可。然后，开始故障排除。
+
+Ceph通常是自我修复。但是，如果问题仍然存在，则监视OSD和放置组将帮助您确定问题。
+
+### 监控OSD
+
+OSD的状态位于群集（`in`）或群集之外（`out`）。并且，它已启动并正在运行（`up`），或者已关闭并未运行（`down`）。如果OSD是`up`，则它可以是`in`群集（可以读取和写入数据），也可以是`out`群集的。如果它是`in`集群，并且是集群的最近移动`out`，则Ceph将把放置组迁移到其他OSD。如果OSD属于`out`群集，则CRUSH不会将放置组分配给OSD。如果OSD是`down`，也应该是OSD `out`。
+
+提示
+
+如果OSD是`down`和`in`，则存在问题，并且群集将无法处于正常状态。
+
+> ![](/home/bsd/readme/ceph_notes/osd_status.png)
+
+如果执行的命令，例如`ceph health`，`ceph -s`或者`ceph -w`，你可能会注意到集群总是不回显`HEALTH OK`。不要惊慌 关于OSD，您应该期望群集在某些预期情况下**不会**回显`HEALTH OK`：
+
+- 您尚未启动集群（它不会响应）。
+- 您刚刚启动或重新启动了集群，但尚未准备好，因为正在创建放置组并且OSD正在对等。
+- 您刚刚添加或删除了OSD。
+- 您刚刚修改了集群图。
+
+监视OSD的一个重要方面是确保在群集启动并运行时，作为群集的所有OSD`in`也在`up`运行。要查看所有OSD是否正在运行，请执行：
+
+```
+ceph osd stat
+```
+
+结果应告诉您OSD总数（x），多少`up`（y），多少`in`（z）和map时期（eNNNN）。
+
+```
+x osds: y up, z in; epoch: eNNNN
+```
+
+如果作为`in`群集的OSD数量大于的OSD数量`up`，请执行以下命令以标识`ceph-osd`未运行的守护程序：
+
+```
+ceph osd tree
+```
+
+```
+#ID CLASS WEIGHT  TYPE NAME             STATUS REWEIGHT PRI-AFF
+ -1       2.00000 pool openstack
+ -3       2.00000 rack dell-2950-rack-A
+ -2       2.00000 host dell-2950-A1
+  0   ssd 1.00000      osd.0                up  1.00000 1.00000
+  1   ssd 1.00000      osd.1              down  1.00000 1.00000
+```
+
+提示
+
+通过精心设计的CRUSH层次结构进行搜索的能力可以通过更快地识别物理位置来帮助您对群集进行故障排除。
+
+如果OSD是`down`，请启动它：
+
+```
+sudo systemctl start ceph-osd@1
+```
+
+请参阅[OSD未运行](https://www.bookstack.cn/read/ceph-en/7bd7346c8207ec58.md#osd-not-running)以获取与已停止或无法重启的OSD相关的问题
+
+
+
+### PG设置
+
+当CRUSH将放置组分配给OSD时，它将查看池的副本数，并将该放置组分配给OSD，以便将该放置组的每个副本分配给一个不同的OSD。例如，如果一个poolrequires贴装组的三个副本，CRUSH可以为它们分配`osd.1`，`osd.2`并`osd.3`分别。CRUSH实际上是在寻求伪随机放置，该放置将考虑您在[CRUSH映射中](https://www.bookstack.cn/read/ceph-en/18e903f31a47a50b.md)设置的故障域，因此您很少会看到大型集群中分配给最近邻居OSD的放置组。我们将应包含特定放置组副本的OSD集合称为“**代理集”**。在某些情况下，代理集中的OSD为`down`否则无法为展示位置组中的对象提供服务。当这些情况出现时，不要惊慌。常见的示例包括：
+
+- 您添加或删除了OSD。然后，CRUSH将布局组重新分配给其他OSD，从而更改了“代理集”的组成并通过“回填”过程产生了数据迁移。
+- OSD是`down`，已经重新启动，现在是`recovering`。
+- 代理集中的一个OSD正在`down`或无法为请求提供服务，并且另一个OSD暂时承担了其职责。
+
+Ceph使用**Up Set**处理客户端请求，**Up Set**是实际上将处理请求的OSD集合。在大多数情况下，Up Set和ActingSet实际上是相同的。如果不是，则可能表明Ceph正在迁移数据，正在恢复OSD或存在问题（例如，在这种情况下Cephusually用“ stread stale”消息回显“ HEALTH WARN”状态）。
+
+要检索展示位置组列表，请执行以下操作：
+
+```
+ceph pg dump
+```
+
+要查看给定放置组的“动作集”或“上集”中的哪些OSD，请执行以下操作：
+
+```
+ceph pg map {pg-num}
+```
+
+结果应该告诉您osdmap时期（eNNN），布局组编号（{pg-num}），上一组（up []）中的OSD和操作集中（acting []）中的OSD。
+
+```
+osdmap eNNN pg {raw-pg-num} ({pg-num}) -> up [0,1,2] acting [0,1,2]
+```
+
+注意
+
+如果Up Set和Acting Set不匹配，则可能表明群集正在重新平衡自身或群集存在潜在问题。
