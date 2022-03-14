@@ -163,6 +163,30 @@ lotus-miner storage attach --init --store <PATH_FOR_LONG_TERM_STORAGE>
 lotus-miner storage list
 移动位置参见  https://docs.filecoin.io/mine/lotus/miner-lifecycle/#changing-storage-locations
 
+```
+设置剩余存储空间不足15%情况下不再自动添加新的封装任务（默认 10%）
+lotus-miner run --min-storage-available-percent-for-auto-pledge 15
+```
+
+限制baseFee低于阈值的时候才提交PreCommit消息
+
+```
+# 通过miner的config.toml修改
+[Fees]
+...
+MaxBaseFee = "3000000000 attoFIL"
+
+# 通过命令在miner运行中修改（重启miner仍然会使用config.toml中的值）
+lotus-miner sealing set --base-fee-threshold "3000000000 attoFIL"
+```
+
+余额不足情况下不再自动添加新的封装任务（已经开始封装的会继续完成）
+
+```
+# 设置余额不足10 FIL情况下不再自动添加新的封装任务（默认 10000 FIL）
+lotus-miner run --min-worker-balance-for-auto-pledge 10
+```
+
 
 
 ## 备份
@@ -280,6 +304,25 @@ lotus-miner proving deadline 5
 檢查窗口錯誤扇區
 
 lotus-miner proving check --only-bad 5
+
+对于FatalError状态的sector，可以用下面的脚本解决
+
+```
+m=`lotus-miner info | grep 'Miner:' | awk -F ' ' '{print $2}'`
+lotus state sectors $m > /tmp/s.txt
+for i in `lotus-miner sectors list | grep -P '(Fatal|Fail|Recover)' | grep -v Remove | awk -F ' ' '{print $1}'`
+do
+  a=`cat /tmp/s.txt | grep -P "^$i:" | wc -l`
+  if [ $a -eq 0 ]
+  then
+    echo $i $a Removing
+    lotus-miner sectors update-state --really-do-it $i Removing
+  else
+    echo $i $a Proving
+    lotus-miner sectors update-state --really-do-it $i Proving
+  fi
+done
+```
 
 
 
@@ -604,7 +647,29 @@ lotus-miner actor control set --really-do-it <address>
 
 lotus-miner actor withdraw <amount>
 
+修改owner、worker、control地址
 
+```
+# 查看矿工关联的地址信息
+lotus-miner actor control list
+
+# 修改owner地址
+# step1:
+lotus-miner actor set-owner --really-do-it <newOwner> <oldOwner>
+# step2:
+lotus-miner actor set-owner --really-do-it <newOwner> <newOwner>
+
+# 修改control地址
+lotus-miner actor control set --really-do-it <address1 address2 ...>
+
+# 修改worker地址
+# step1.
+lotus-miner actor propose-change-worker <address>
+# step2.
+lotus-miner actor confirm-change-worker <address>
+```
+
+[分离ProveCommitSector地址](https://github.com/shannon-6block/lotus-miner/blob/master/COMMIT.md)
 
 ## 多重签名钱包
 
@@ -720,6 +785,14 @@ compute window post proof (hot): 807.811098ms
 verify window post proof (cold): 34.598113ms
 verify window post proof (hot): 6.171889ms
 
+
+
+62f55953-8d02-4b66-9b96-59c60dd3f431
+
+e27852d8-91ff-4146-a5e9-a6934e4f453e
+
+62d7097d-2f2d-4d65-ad4b-ac483e201b01
+
 ## CPU开启性能模式
 
 #### 临时开启
@@ -752,7 +825,7 @@ sudo cpufreq-set -g performance
 sudo apt-get install sysfsutils
 ```
 
-编辑/etc/sysfs.conf，增加如下语句:
+编辑/etc/sysfs.conf，增加如下语句:(相对应的，每个CPU内核都需要添加)
 
 ```
 devices/system/cpu/cpu0/cpufreq/scaling_governor = performance
@@ -764,3 +837,44 @@ devices/system/cpu/cpu0/cpufreq/scaling_governor = performance
 watch grep \"cpu MHz\" /proc/cpuinfo
 ```
 
+# Updating crates.io index 速度慢的解决办法
+
+Rust社区公开的第三方包都集中在crates.io网站上面，他们的文档被自动发布到doc.rs网站上。Rust提供了非常方便的包管理器cargo，它类似于Node.js的npm和Python的pip。但cargo不仅局限于包管理，还为Rust生态系统提供了标准的工作流。
+在实际开发中，为了更快速下载第三方包，我们需要把crates.io换国内的镜像源，否则在拉取 crates.io 仓库代码会非常慢，Updating crates.io index 卡很久，很多次超时导致引用库没法编译。
+
+在 $HOME/.cargo/config 中添加如下内容：
+
+```
+# 放到 `$HOME/.cargo/config` 文件中
+[source.crates-io]
+#registry = "https://github.com/rust-lang/crates.io-index"
+
+# 替换成你偏好的镜像源
+replace-with = 'ustc'
+#replace-with = 'sjtu'
+
+# 清华大学
+[source.tuna]
+registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
+
+# 中国科学技术大学
+[source.ustc]
+registry = "git://mirrors.ustc.edu.cn/crates.io-index"
+
+# 上海交通大学
+[source.sjtu]
+registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
+
+# rustcc社区
+[source.rustcc]
+registry = "git://crates.rustcc.cn/crates.io-index"
+```
+
+如果所处的环境中不允许使用 git 协议，可以把上述地址改为：
+
+```bash
+registry = "https://mirrors.ustc.edu.cn/crates.io-index"
+1
+```
+
+注意：cargo search 无法使用镜像。

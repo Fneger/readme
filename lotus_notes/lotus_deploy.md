@@ -22,7 +22,7 @@ ceph集群搭建硬件要求
 
 ### CPU开启性能模式
 
-## 3.编译安装lotus源码
+## 3.编译安装lotus
 
 ## 4.配置lotus相关环境变量
 
@@ -143,6 +143,10 @@ lotus-miner storage list
 ## 7.启动worker
 ```
 
+## 7.备份
+
+## 8.启动系统监控工具（待开发）
+
 ## Ulimit 问题：Too many open files (os error 24)
 
 miner 在运行过程中可能会出现这个错误 `Too many open files (os error 24)`， 导致程序退出，解决的方法就是设置系统中最大允许的文件打开数量：
@@ -177,3 +181,4 @@ DefaultLimitNOFILE=1048576
 * hard nofile 1048576
 * soft nofile 1048576
 ```
+
